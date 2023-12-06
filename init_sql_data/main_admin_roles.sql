@@ -1,0 +1,1 @@
+INSERT INTO admin_roles (id, name, description) VALUES (1, 'admin', 'admin');

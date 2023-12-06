@@ -1,0 +1,1 @@
+INSERT INTO admin_users (id, email, username, password, active, confirmed_at) VALUES (1, 'xufeng.lucky@qq.com', 'admin', 'pbkdf2:sha256:150000$mCn7oStQ$60a9ae83b1d62382cab1a49e7abaf104a9fbaf0de2a3e0dc90e5f526709aecb0', 1, '2020-02-24 19:09:00');

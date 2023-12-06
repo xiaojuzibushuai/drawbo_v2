@@ -1,0 +1,1 @@
+INSERT INTO admin_roles_users (user_id, role_id) VALUES (1, 1);

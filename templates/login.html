@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>数据后台</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="robots" content="all,follow">
+    <link rel="stylesheet" href="/project/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/project/css/style.default.css" id="theme-stylesheet">
+  </head>
+  <body>
+    <div class="page login-page">
+      <div class="container d-flex align-items-center">
+        <div class="form-holder has-shadow">
+          <div class="row">
+            <!-- Logo & Information Panel-->
+            <div class="col-lg-6">
+              <div class="info d-flex align-items-center">
+                <div class="content">
+                  <div class="logo">
+                    <h1>欢迎登录</h1>
+                  </div>
+                  <p>后台管理系统</p>
+                </div>
+              </div>
+            </div>
+            <!-- Form Panel    -->
+            <div class="col-lg-6 bg-white">
+              <div class="form d-flex align-items-center">
+                <div class="content">
+                  <form method="post" class="form-validate" id="loginFrom">
+                      {{ form.hidden_tag() if form.hidden_tag }}
+                      {% for f in form if f.type != 'CSRFTokenField' %}
+                          <div class="form-group">
+                              {% if loop.index == 1 %}
+                                  {{ f(class="input-material",placeholder="用户名") }}
+                              {% elif loop.index == 2 %}
+                                  {{ f(class="input-material",placeholder="密码") }}
+                              {% endif %}
+                              {% if f.errors %}
+                                  <ul class="text-danger">
+                                      {% for e in f.errors %}
+                                          <li>{{ e }}</li>
+                                      {% endfor %}
+                                  </ul>
+                              {% endif %}
+                          </div>
+                      {% endfor %}
+                    <button id="login" type="submit" class="btn btn-primary">登录</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

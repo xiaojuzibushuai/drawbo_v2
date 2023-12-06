@@ -1,0 +1,29 @@
+{% extends 'admin/model/edit.html' %}
+{% import 'lib_fileinput.html' as lib_fileinput with context %}
+
+{% block head %}
+  {{ super() }}
+  {{ lib_fileinput.fileinput_css() }}
+{% endblock %}
+
+{% block tail %}
+  {{ super() }}
+  {{ lib_fileinput.fileinput_js() }}
+  {{ lib_fileinput.fileinput_conf(form) }}
+        <script language="javascript">
+        function safeConfirm(msg) {
+          try {
+            var isconfirmed = confirm(msg);
+            if (isconfirmed == true) {
+              return true;
+            }
+            else {
+              return false;
+            }
+          }
+          catch(err) {
+            return false;
+          }
+        }
+    </script>
+{% endblock %}

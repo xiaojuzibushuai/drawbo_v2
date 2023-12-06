@@ -1,0 +1,54 @@
+{% macro fileinput_js() %}
+    <script src="/bootstrap-fileinput/js/plugins/piexif.js" type="text/javascript"></script>
+    <script src="/bootstrap-fileinput/js/plugins/sortable.js" type="text/javascript"></script>
+    <script src="/bootstrap-fileinput/js/fileinput.js" type="text/javascript"></script>
+    <script src="/bootstrap-fileinput/js/locales/zh.js" type="text/javascript"></script>
+    <script src="/bootstrap-fileinput/themes/fas/theme.js" type="text/javascript"></script>
+    <script src="/bootstrap-fileinput/themes/explorer-fas/theme.js" type="text/javascript"></script>
+{% endmacro %}
+
+
+{% macro fileinput_css() %}
+    <link href="/bootstrap-fileinput/themes/explorer-fas/theme.css" media="all" rel="stylesheet" type="text/css"/>
+    <link href="/bootstrap-fileinput/css/fileinput.css" media="all" rel="stylesheet" type="text/css"/>
+{#    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" crossorigin="anonymous">#}
+    <link rel="stylesheet" href="/bootstrap-fileinput/css/all.css" type="text/css" media="all" />
+{% endmacro %}
+
+{%  macro fileinput_conf(form) %}
+    <script>
+       $(document).ready(function () {
+           {% for f in form if f.jsConf %}
+               $("#{{f.conf_option.id}}").fileinput({
+                   language: 'zh',
+                   theme: 'fas',
+                   uploadUrl: '{{f.conf_option.uploadUrl}}',
+                   showUpload: {{ f.conf_option.showUpload }},
+                   showRemove: {{ f.conf_option.showRemove }},     //是否显示删除按钮
+                   allowedFileExtensions: ['mp3','wav'],
+                   initialPreviewFileType: 'audio',
+                   uploadExtraData: {
+                       mode: 'ajax',
+                       pk_value: '{{ f.conf_option.pk }}',
+                       field_name: '{{ f.conf_option.field_name }}'
+                   },
+                   uploadAsync: {{ f.conf_option.uploadAsync }},   //异步上传
+                   minFileCount: {{ f.conf_option.minFileCount }},
+                   maxFileCount: {{ f.conf_option.maxFileCount }},
+                   maxFileSize: {{ f.conf_option.maxFileSize }},    // 文件最大KB
+                   validateInitialCount: true,
+                   initialPreviewShowDelete:{{ f.conf_option.initialPreviewShowDelete }},
+                   initialPreviewAsData: true,
+                   overwriteInitial: false,
+                   {% if f.conf_option.initialPreview %}
+                       initialPreview: {{ f.conf_option.initialPreview | safe }}, //初始预览内容
+                       initialPreviewConfig: {{ f.conf_option.initialPreviewConfig | safe }},
+                   {% endif %}
+               }).on("filebatchselected", function(event, files) {
+                    $(this).fileinput("upload");
+                });
+           {% endfor %}
+       });
+
+    </script>
+{% endmacro %}
