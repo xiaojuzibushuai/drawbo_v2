@@ -19,7 +19,7 @@ jwt = JWTManager(app)
 @jwt.token_in_blocklist_loader
 def check_if_token_in_blacklist(jwt_headers,jwt_payload):
     jti = jwt_payload['jti']
-    token_in_redis = jwt_redis_blocklist.hget("jti",jti)
+    token_in_redis = jwt_redis_blocklist.get(jti)
     # revoked_token = RevokedToken.query.filter_by(jti=jti).first()
     return token_in_redis is not None
 

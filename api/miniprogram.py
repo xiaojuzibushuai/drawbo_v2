@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*-coding:utf-8 -*-
+import ipaddress
 import random
 import re
 import string
@@ -15,7 +16,7 @@ from flask_jwt_extended import get_jwt
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
 
-from sqlalchemy import func, cast, Integer, or_
+from sqlalchemy import func, cast, Integer, or_, and_, not_
 
 from api.auth import jwt_redis_blocklist
 from api.mqtt import mqtt_push_wakeword_data, mqttPushAnswerToKeyBoard, get_mqtt_push_volume, get_mqtt_push_direction
@@ -25,6 +26,7 @@ from models.device import Device
 from models.logout_user import LogoutUser
 from models.page import IndexAD, IndexRecommend, Share
 from models.revoked_token import RevokedToken
+from models.share_codes import ShareCodes
 from models.sms_send import SmsSend
 from models.user import User, FaceInfo, CustomerService
 from script.mosquitto_product import user_insert, user_remove
@@ -34,7 +36,7 @@ from utils import sms_util
 from utils.WXBizDataCrypt import WXBizDataCrypt
 from utils.tools import ret_data, model_to_dict, dict_fill_url, dict_drop_field, decorator_sign, change_field_key, \
     dict_add_default_data, cut_face_image, create_noncestr, make_device_qrcode, rate_limit, require_api_key, \
-    check_password, hash_password
+    check_password, hash_password, get_location_by_ip, getUserIp
 from utils.error_code import *
 from utils.districts import districts as region
 from datetime import datetime, date
@@ -158,7 +160,7 @@ def getUserDetailByWX():
                 user.uptime = datetime.now()
                 db.session.commit()
             else:
-                # 兼容v1版本的默认注册 xiaojuzi v2 20231129
+                # 兼容v1版本的默认注册 xiaojuzi v2 20231129 （20231215暂时这样待修改）
                 user1 = User.query.filter_by(openid=openid).first()
                 if user1:
                     user1.uptime = datetime.now()
@@ -190,23 +192,34 @@ def loginByPassword():
 
     register_phone = request.form.get('register_phone', None)
 
-    password = request.form.get('password', None)
+    password = request.form.get('password')
 
-    # if not validate_password(password):
-    #     return jsonify(ret_data(PASSWORD_ERROR))
+    if not register_phone or not password:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    #上线得加上密码校验 20231215 xiaojuzi v2
+    if not validate_password(password):
+        return jsonify(ret_data(PASSWORD_ERROR))
 
     if not validate_phone_number(register_phone):
         return jsonify(ret_data(PHONE_NUMBER_ERROR))
 
     user = User.query.filter_by(register_phone=register_phone).first()
 
-    if not user :
+    if not user:
         return jsonify(ret_data(PHONE_NOT_FIND))
+
+    #新增默认用户名 20231207 xiaojuzi v2 (避免v1已注册用户不生成用户名)
+    if not user.nickname:
+        user.nickname = generate_nickname()
+        db.session.commit()
+
     #校验密码 20231202 xiaojuzi v2
     is_valid = check_password(password, user.password)
     if is_valid:
         user.login_count += 1
         user.uptime = datetime.now()
+        user.ip = getUserIp()
 
         user1 = model_to_dict(user)
 
@@ -256,8 +269,13 @@ def register():
 
             if user:
 
+                # 新增默认用户名 20231207 xiaojuzi v2 (避免v1已注册用户不生成用户名)
+                if not user.nickname:
+                    user.nickname = generate_nickname()
+
                 user.login_count += 1
                 user.uptime = datetime.now()
+                user.ip = getUserIp()
 
                 user1 = model_to_dict(user)
 
@@ -278,9 +296,23 @@ def register():
                 #兼容v1版本的默认注册 xiaojuzi v2 20231129
                 user1 = User.query.filter_by(openid=openid).first()
                 if user1:
+                    #（20231215暂时这样待修改）
+                    if user1.register_phone:
+                        if user1.register_phone!= register_phone:
+                            return jsonify(ret_data(PHONE_IS_NOT_MATCH))
+                    else:
+                        user1.register_phone = register_phone
+
+                    # if not user1.register_phone:
+                    #     user1.register_phone = register_phone
+
+                    # 新增默认用户名 20231207 xiaojuzi v2 (避免v1已注册用户不生成用户名)
+                    if not user1.nickname:
+                        user1.nickname = generate_nickname()
+
                     user1.login_count += 1
                     user1.uptime = datetime.now()
-                    user1.register_phone = register_phone
+                    user1.ip = getUserIp()
 
                     user2 = model_to_dict(user1)
                     db.session.commit()
@@ -299,7 +331,9 @@ def register():
                     user2 = User(openid=openid,
                                  register_phone=register_phone,
                                  uptime=datetime.now(),
-                                 login_count=1
+                                 login_count=1,
+                                 nickname=generate_nickname(),
+                                 ip=getUserIp(),
                                  )
                     db.session.add(user2)
                     user3 = model_to_dict(user2)
@@ -313,7 +347,7 @@ def register():
                     logging.info('new user register_phone:%s, openid:%s' % (register_phone, openid))
 
                     return jsonify(ret_data(SUCCESS, data={
-                        'message':'注册成功！',
+                        'message': '注册成功！',
                         'access_token': access_token,
                       'refresh_token': refresh_token,
                     }))
@@ -321,6 +355,38 @@ def register():
             return jsonify(ret_data(SMS_CODE_ERROR))
     else:
         return jsonify(ret_data(SMS_CODE_EXPIRE))
+
+
+#查询个人详细信息(获取用户登录信息) xiaojuzi v2 20231207
+@miniprogram_api.route('/getUserInfo', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+def getUserInfo():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    #就是令牌所存储进去的信息
+    # print(current_user)
+
+    userid = request.form.get('openid', None)
+
+    user = User.query.filter_by(openid=userid).first()
+
+    if not user:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    data = model_to_dict(user)
+    #20231215 xiaojuzi v2
+    data = dict_fill_url(data, ['avatar'])
+
+    #新增用户所在地信息 20231207 xiaojuzi v2
+    location = get_location_by_ip(user.ip)
+
+    data['location'] = location
+
+    return jsonify(ret_data(SUCCESS, data=data))
 
 # 刷新令牌接口 xiaojuzi v2 20231204
 @miniprogram_api.route('/auth/refreshToken', methods=['POST'])
@@ -338,11 +404,16 @@ def refreshToken():
 @miniprogram_api.route('/auth/logout', methods=['DELETE'])
 @jwt_required()
 def logout():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
     jti = get_jwt()['jti']
     ttype = get_jwt()["type"]
     # 将令牌加入黑名单
-    jwt_redis_blocklist.hset("jti",jti, "")
-    jwt_redis_blocklist.expire("jti", JWT_ACCESS_TOKEN_EXPIRES)
+    jwt_redis_blocklist.set(jti,"",ex=JWT_ACCESS_TOKEN_EXPIRES)
+
     return jsonify(ret_data(SUCCESS,data=f"{ttype.capitalize()} token successfully revoked"))
 
     # revoked_token = RevokedToken(jti=jti,created_at=datetime.now())
@@ -351,7 +422,7 @@ def logout():
     # return jsonify(ret_data(SUCCESS,data={'message': 'Successfully logged out'}))
 
 
-#小程序用户个人中心重置密码接口  xiaojuzi v2 20231130
+#小程序用户个人中心重置密码接口（找回密码 忘记密码）  xiaojuzi v2 20231130
 @miniprogram_api.route('/resetPassword', methods=['POST'])
 # @jwt_required()
 # @decorator_sign
@@ -382,6 +453,8 @@ def resetPassword():
 
     if flage:
         user = User.query.filter_by(register_phone=register_phone).first()
+        if not user:
+            return jsonify(ret_data(PHONE_NOT_FIND))
         #20231202 xiaojzi v2 加密密码
         hashed_password = hash_password(password)
         user.password = hashed_password
@@ -390,7 +463,7 @@ def resetPassword():
     else:
         return jsonify(ret_data(RESET_PASSWORD_ERROR))
 
-#更改用户个人信息接口  xiaojuzi v2 20231202
+#更改用户个人信息接口  xiaojuzi v2 20231215
 @miniprogram_api.route('/updateUserDetail', methods=['POST'])
 @jwt_required()
 def updateUserDetail():
@@ -401,17 +474,972 @@ def updateUserDetail():
 
     logging.info('updateUserDetail api')
 
-    openid = request.form.get('openid')
+    openid = request.form.get('openid',None)
+    nickname = request.form.get('nickname',None)
 
     user = User.query.filter_by(openid=openid).first()
     if not user:
         return jsonify(ret_data(USER_NOT_FIND))
 
-    #更改信息 待完善
+    #更改信息 完善 20231215 xiaojuzi v2
+    #头像获取 20231208 xiaojuzi v2
+    f = request.files.get('avatar')
+    if f:
+        extension = f.filename.split('.')[1].lower()
+        new_filename = str(user.id) + '_' + str(int(time.time())) + '.' + extension
+
+        if extension not in app.config['ALLOWED_EXTENSIONS']:
+            return jsonify(ret_data(PARAMS_ERROR, data='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!'))
+
+        image_path = os.path.join(os.path.abspath('.'), 'static', 'avatar', new_filename)
+
+        f.save(image_path)
+
+        user.avatar = 'avatar/'+new_filename
+
+    if nickname:
+        user.nickname = nickname
 
     db.session.commit()
 
     return jsonify(ret_data(SUCCESS,data='操作成功'))
+
+
+#创建用户场景 xiaojuzi v2 20231211
+@miniprogram_api.route('/createScene', methods=['POST'])
+@jwt_required()
+def create_scene():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('createScene api')
+
+    userid = request.form.get('openid',None)
+
+    scenename = request.form.get('scenename',None)
+
+    sub_scenename = request.form.get('sub_scenename',None)
+
+    if not userid or not scenename or not sub_scenename:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    sub_scenename_list = sub_scenename.split(",")
+
+    sub_scenename_list = list(set(sub_scenename_list))
+
+    for sc in sub_scenename_list:
+
+        dg = DeviceGroup.query.filter_by(userid=userid,scenename=scenename,sub_scenename=sc).first()
+
+        if not dg:
+
+            device_group = DeviceGroup(userid=userid,scenename=scenename,sub_scenename=sc)
+            db.session.add(device_group)
+            db.session.commit()
+
+            logging.info('new device_group%s',model_to_dict(device_group))
+
+    return jsonify(ret_data(SUCCESS,data='创建场景成功!'))
+
+#用户场景修改名字 xiaojuzi v2 20231211
+@miniprogram_api.route('/updateUserScene', methods=['POST'])
+@jwt_required()
+def updateUserScene():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('updateUserScene api')
+
+    userid = request.form.get('openid',None)
+    scenename = request.form.get('scenename', None)
+    sub_scenename = request.form.get('sub_scenename', None)
+
+    new_scenename = request.form.get('new_scenename', None)
+    new_sub_scenename = request.form.get('new_sub_scenename', None)
+
+    if not userid or not scenename:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    strategy = 'update'
+    code = getUserSceneStrategy(userid, scenename, sub_scenename, strategy,new_scenename,new_sub_scenename)
+    if code == SUCCESS:
+        return jsonify(ret_data(SUCCESS,data='修改场景成功!'))
+    else:
+        return jsonify(ret_data(code,data='修改场景失败!'))
+
+
+#删除用户场景 xiaojuzi v2 20231211
+@miniprogram_api.route('/deleteUserScene', methods=['POST'])
+@jwt_required()
+def deleteUserScene():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('deleteUserScene api')
+
+    userid = request.form.get('openid',None)
+    scenename = request.form.get('scenename',None)
+    sub_scenename = request.form.get('sub_scenename',None)
+
+    if not userid or not scenename:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    strategy = 'delete'
+    code = getUserSceneStrategy(userid, scenename, sub_scenename, strategy)
+    if code == SUCCESS:
+        return jsonify(ret_data(SUCCESS,data='删除场景成功!'))
+    else:
+        return jsonify(ret_data(code,data='删除场景失败!'))
+
+#用户场景策略执行 xiaojuzi v2 20231211
+def getUserSceneStrategy(userid,scenename,sub_scenename,strategy,new_scenename=None,new_sub_scenename=None):
+
+    if strategy == 'delete':
+        if sub_scenename:
+            dg = DeviceGroup.query.filter_by(userid=userid,scenename=scenename,sub_scenename=sub_scenename).first()
+            if dg:
+
+                db.session.delete(dg)
+
+                user_external_device = UserExternalDevice.query.filter_by(userid=userid,sceneid=dg.id).all()
+
+                for ued in user_external_device:
+                    ued.sceneid = None
+
+                user_device = User_Device.query.filter_by(userid=userid,sceneid=dg.id).all()
+
+                for ud in user_device:
+                    ud.sceneid = None
+
+                db.session.commit()
+
+                logging.info('delete device_group%s',model_to_dict(dg))
+
+            return SUCCESS
+        else:
+            dg = DeviceGroup.query.filter_by(userid=userid,scenename=scenename).all()
+            if dg:
+                for d in dg:
+
+                    db.session.delete(d)
+
+                    user_external_device = UserExternalDevice.query.filter_by(userid=userid,
+                                                                              sceneid=d.id).all()
+
+                    for ued in user_external_device:
+                        ued.sceneid = None
+
+                    user_device = User_Device.query.filter_by(userid=userid, sceneid=d.id).all()
+
+                    for ud in user_device:
+                        ud.sceneid = None
+
+                db.session.commit()
+                logging.info('delete device_group%s',model_to_dict(dg))
+
+            return SUCCESS
+
+    if strategy == 'update':
+        if sub_scenename:
+            if not new_sub_scenename:
+                return PARAMS_ERROR
+
+            dg = DeviceGroup.query.filter_by(userid=userid,scenename=scenename,sub_scenename=sub_scenename).first()
+            if dg:
+
+                dg.sub_scenename = new_sub_scenename
+
+                db.session.commit()
+
+                logging.info('update device_group%s',model_to_dict(dg))
+
+            return SUCCESS
+        else:
+            if not new_scenename:
+                return PARAMS_ERROR
+
+            dg = DeviceGroup.query.filter_by(userid=userid,scenename=scenename).all()
+            if dg:
+                for d in dg:
+                    d.scenename = new_scenename
+
+                db.session.commit()
+
+                logging.info('update device_group%s',model_to_dict(dg))
+
+            return SUCCESS
+
+
+#用户场景查询 xiaojuzi v2 20231211
+@miniprogram_api.route('/getUserScene', methods=['POST'])
+@jwt_required()
+def getUserScene():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('getUserScene api')
+    userid = request.form.get('openid',None)
+
+    user = User.query.filter_by(openid=userid).first()
+
+    if not user:
+        return jsonify(ret_data(USER_NOT_FIND))
+
+    user_scene = DeviceGroup.query.filter_by(userid=userid).all()
+
+    data_list = []
+
+    data_dict = {
+       'id': '',
+       'userid': '',
+       'scenename': '',
+       'sub_scenename_list': []
+    }
+
+    if user_scene:
+        for us in user_scene:
+            data_dict['id'] = us.id
+            data_dict['userid'] = us.userid
+            data_dict['scenename'] = us.scenename
+
+            if len(data_list) == 0:
+                data_dict['sub_scenename_list'].append({
+                    'sub_id': us.id,
+                    'sub_name': us.sub_scenename}
+                )
+                data_list.append(data_dict)
+            else:
+                for da in data_list:
+                    if da['scenename'] == us.scenename and da['userid'] == us.userid:
+                        da['sub_scenename_list'].append({
+                    'sub_id': us.id,
+                    'sub_name': us.sub_scenename})
+                        break
+                else:
+                    data_dict['sub_scenename_list'].append({
+                    'sub_id': us.id,
+                    'sub_name': us.sub_scenename})
+                    data_list.append(data_dict)
+
+            data_dict = {
+                'id': '',
+                'userid': '',
+                'scenename': '',
+                'sub_scenename_list': [],
+            }
+
+    logging.info('data_list%s',data_list)
+
+    return jsonify(ret_data(SUCCESS,data=data_list))
+
+#用户大场景下所有小场景列表查询 xiaojuzi v2 20231213
+@miniprogram_api.route('/getUserSceneSubList', methods=['POST'])
+@jwt_required()
+def getUserSceneSubList():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('getUserSceneSubList api')
+
+    sceneid = request.form.get('id')
+
+    if not sceneid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+    if not user_scene:
+        return jsonify(ret_data(SCENE_ERROR))
+
+    userid = user_scene.userid
+    scenename = user_scene.scenename
+
+    user_scene1 = DeviceGroup.query.filter_by(userid=userid, scenename=scenename).all()
+
+    return jsonify(ret_data(SUCCESS,data=model_to_dict(user_scene1)))
+
+#用户场景详情未在此场景下用户的设备查询 xiaojuzi v2 20231213
+@miniprogram_api.route('/getUnUserSceneDeviceById', methods=['POST'])
+@jwt_required()
+def getUnUserSceneDeviceById():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('getUnUserSceneDeviceById api')
+
+    sceneid = request.form.get('id')
+
+    if not sceneid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+
+    if not user_scene:
+        return jsonify(ret_data(SCENE_ERROR))
+
+    data_list = []
+
+    data_dict = {
+        'scenename':'',
+        'sub_scenename': '',
+        'UserExternalDevice': [],
+        'UserDevice': []
+    }
+
+    userid = user_scene.userid
+    scenename = user_scene.scenename
+    sub_scenename = user_scene.sub_scenename
+
+    user_scene1 = DeviceGroup.query.filter(DeviceGroup.userid==userid,not_(and_(
+                                                DeviceGroup.scenename==scenename,
+                                                DeviceGroup.sub_scenename==sub_scenename))).all()
+    if user_scene1:
+        for us in user_scene1:
+
+            data_dict['scenename'] = us.scenename
+            data_dict['sub_scenename'] = us.sub_scenename
+
+            ued = UserExternalDevice.query.filter_by(userid=us.userid, sceneid=us.id).all()
+            ud = User_Device.query.filter_by(userid=us.userid, sceneid=us.id).all()
+
+            if ued:
+                ued_dict = {
+                    'deviceid': '',
+                    'devicename': '',
+                    'd_type': ''
+                }
+                for ue in ued:
+                    ed = ExternalDevice.query.filter_by(deviceid=ue.deviceid).first()
+                    ued_dict['deviceid'] = ed.deviceid
+                    ued_dict['devicename'] = ed.devicename
+                    ued_dict['d_type'] = ed.d_type
+                    data_dict['UserExternalDevice'].append(ued_dict)
+                    ued_dict = {
+                        'deviceid': '',
+                        'devicename': '',
+                        'd_type': ''
+                    }
+            if ud:
+                ud_dict = {
+                    'deviceid': '',
+                    'devicename': '',
+                }
+                for u in ud:
+                    d = Device.query.filter_by(deviceid=u.deviceid).first()
+                    ud_dict['deviceid'] = d.deviceid
+                    ud_dict['devicename'] = d.devicename
+
+                    data_dict['UserDevice'].append(ud_dict)
+                    ud_dict = {
+                        'deviceid': '',
+                        'devicename': '',
+                    }
+
+            data_list.append(data_dict)
+
+            data_dict = {
+                'scenename': '',
+                'sub_scenename': '',
+                'UserExternalDevice': [],
+                'UserDevice': []
+            }
+
+    #新增逻辑 20231214 xiaojuzi v2
+    ued = UserExternalDevice.query.filter(UserExternalDevice.userid==userid, UserExternalDevice.sceneid.is_(None)).all()
+    ud = User_Device.query.filter(User_Device.userid==userid, User_Device.sceneid.is_(None)).all()
+
+    if ued:
+        ued_dict = {
+            'deviceid': '',
+            'devicename': '',
+            'd_type': ''
+        }
+        for ue in ued:
+            ed = ExternalDevice.query.filter_by(deviceid=ue.deviceid).first()
+            ued_dict['deviceid'] = ed.deviceid
+            ued_dict['devicename'] = ed.devicename
+            ued_dict['d_type'] = ed.d_type
+            data_dict['UserExternalDevice'].append(ued_dict)
+            ued_dict = {
+                'deviceid': '',
+                'devicename': '',
+                'd_type': ''
+            }
+
+    if ud:
+        ud_dict = {
+            'deviceid': '',
+            'devicename': '',
+        }
+        for u in ud:
+            d = Device.query.filter_by(deviceid=u.deviceid).first()
+            ud_dict['deviceid'] = d.deviceid
+            ud_dict['devicename'] = d.devicename
+
+            data_dict['UserDevice'].append(ud_dict)
+            ud_dict = {
+                'deviceid': '',
+                'devicename': '',
+            }
+
+    data_list.append(data_dict)
+
+    return jsonify(ret_data(SUCCESS,data=data_list))
+
+#用户场景详情设备查询 xiaojuzi v2 20231213
+@miniprogram_api.route('/getUserSceneDetailById', methods=['POST'])
+@jwt_required()
+def getUserSceneDetailById():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('getUserSceneDetailById api')
+
+    sceneid = request.form.get('id')
+
+    if not sceneid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+    if not user_scene:
+        return jsonify(ret_data(SCENE_ERROR))
+
+    data_dict = {
+        'sub_scenename': '',
+        'UserExternalDevice': [],
+        'UserDevice': []
+    }
+
+    userid = user_scene.userid
+    sub_scenename = user_scene.sub_scenename
+
+    ued = UserExternalDevice.query.filter_by(userid=userid, sceneid=user_scene.id).all()
+
+    ud = User_Device.query.filter_by(userid=userid, sceneid=user_scene.id).all()
+
+    data_dict['sub_scenename'] = sub_scenename
+
+    if ued:
+        ued_dict = {
+            'deviceid': '',
+            'devicename': '',
+            'd_type': ''
+        }
+        for ue in ued:
+            ed = ExternalDevice.query.filter_by(deviceid=ue.deviceid).first()
+            ued_dict['deviceid'] = ed.deviceid
+            ued_dict['devicename'] = ed.devicename
+            ued_dict['d_type'] = ed.d_type
+            data_dict['UserExternalDevice'].append(ued_dict)
+            ued_dict = {
+                'deviceid': '',
+                'devicename': '',
+                'd_type': ''
+            }
+
+    if ud:
+        ud_dict = {
+            'deviceid': '',
+            'devicename': '',
+        }
+        for u in ud:
+            d = Device.query.filter_by(deviceid=u.deviceid).first()
+            ud_dict['deviceid'] = d.deviceid
+            ud_dict['devicename'] = d.devicename
+
+            data_dict['UserDevice'].append(ud_dict)
+            ud_dict = {
+                'deviceid': '',
+                'devicename': '',
+            }
+
+    # user_scene = model_to_dict(user_scene)
+    # user_scene = dict_drop_field(user_scene,['sub_scenename'])
+
+    return jsonify(ret_data(SUCCESS,data=data_dict))
+
+
+#用户大场景下创建小场景 xiaojuzi v2 20231214
+@miniprogram_api.route('/createUserSceneSub', methods=['POST'])
+@jwt_required()
+def createUserSceneSub():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('createUserSceneSub api')
+
+    sceneid = request.form.get('id', None)
+
+    sub_scenename = request.form.get('sub_scenename', None)
+
+    if not sceneid or not sub_scenename:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+
+    if not user_scene:
+        return jsonify(ret_data(SCENE_ERROR))
+
+    userid = user_scene.userid
+    scenename = user_scene.scenename
+
+    user_scene1 = DeviceGroup.query.filter_by(userid=userid, scenename=scenename, sub_scenename=sub_scenename).first()
+
+    if not user_scene1:
+        user_scene1 = DeviceGroup(userid=userid, scenename=scenename, sub_scenename=sub_scenename)
+        db.session.add(user_scene1)
+        db.session.commit()
+        return jsonify(ret_data(SUCCESS,data='小场景创建成功!'))
+
+    return jsonify(ret_data(SCENE_SUB_EXIST,data='小场景已存在!'))
+
+
+#用户场景添加绑定设备 xiaojuzi v2 20231214
+@miniprogram_api.route('/createUserSceneBindDevice', methods=['POST'])
+@jwt_required()
+def createUserSceneBindDevice():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('createUserSceneBindDevice api')
+
+    sceneid = request.form.get('id', None)
+
+    deviceid = request.form.get('deviceid', None)
+
+    if not sceneid or not deviceid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+
+    if not user_scene:
+        return jsonify(ret_data(SCENE_ERROR))
+
+    strategy = 'bind'
+    result = getUserSceneBindDeviceStrategy(user_scene.id,deviceid,user_scene.userid,strategy)
+
+    if result == SUCCESS:
+        return jsonify(ret_data(SUCCESS,data='场景绑定设备成功!'))
+    else:
+        return jsonify(ret_data(result,data='场景绑定设备失败!'))
+
+
+#用户场景解除绑定设备 xiaojuzi v2 20231214
+@miniprogram_api.route('/userSceneUnBindDevice', methods=['POST'])
+@jwt_required()
+def userSceneUnBindDevice():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('userSceneUnBindDevice api')
+
+    sceneid = request.form.get('id', None)
+
+    deviceid = request.form.get('deviceid', None)
+
+    if not sceneid or not deviceid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+    if not user_scene:
+        return jsonify(ret_data(SCENE_ERROR))
+
+    strategy = 'unbind'
+    result = getUserSceneBindDeviceStrategy(user_scene.id, deviceid, user_scene.userid, strategy)
+
+    if result == SUCCESS:
+        return jsonify(ret_data(SUCCESS, data='场景解绑设备成功!'))
+    else:
+        return jsonify(ret_data(result, data='场景解绑设备失败!'))
+
+
+#用户场景对设备绑定解绑策略 xiaojuzi v2 20231214
+def getUserSceneBindDeviceStrategy(sceneid,deviceid,userid,strategy):
+
+    ued = UserExternalDevice.query.filter_by(userid=userid, deviceid=deviceid).first()
+    ud = User_Device.query.filter_by(userid=userid, deviceid=deviceid).first()
+
+    if ued:
+        if strategy == 'bind':
+            ued.sceneid = sceneid
+        else:
+            ued.sceneid = None
+
+    if ud:
+        if strategy == 'bind':
+            ud.sceneid = sceneid
+        else:
+            ud.sceneid = None
+
+    db.session.commit()
+
+    return SUCCESS
+
+#用户场景分享已绑定的设备 xiaojuzi v2 20231214
+@miniprogram_api.route('/createUserSceneShareDevice', methods=['POST'])
+@jwt_required()
+def createUserSceneShareDevice():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('createUserSceneShareDevice api')
+
+    sceneid = request.form.get('id',None)
+
+    end_date = request.form.get('end_date',None)
+
+    permission_level = request.form.get('permission_level',1)
+
+
+    if not sceneid or not end_date:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    date_format = '%Y-%m-%d %H:%M:%S'
+    end_date = datetime.strptime(end_date, date_format)
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+    if not user_scene:
+        return jsonify(ret_data(SCENE_ERROR))
+
+    userid = user_scene.userid
+    #修改逻辑 20231216 xiaojuzi
+    ued = UserExternalDevice.query.filter_by(userid=userid, status=0,sceneid=user_scene.id).all()
+
+    ud = User_Device.query.filter_by(userid=userid,status=0, sceneid=user_scene.id).all()
+
+    code = generate_device_share_code()
+
+    flag = False
+
+    if ued:
+        flag = True
+        for ue in ued:
+            share_ued = ShareCodes.query.filter(and_(
+                ShareCodes.userid==userid,ShareCodes.deviceid==ue.deviceid)).first()
+            if share_ued:
+
+                # 修改逻辑 20231216 xiaojuzi
+                UserExternalDevice.query.filter_by(share_code=share_ued.code, shareby_userid=userid,deviceid=ue.deviceid).update(
+                    {UserExternalDevice.share_code: code})
+
+                share_ued.end_date = end_date
+                share_ued.permission_level = permission_level
+                share_ued.code = code
+
+            else:
+                share_ued1 = ShareCodes(userid=userid,deviceid=ue.deviceid,code=code,type=2,
+                                        permission_level=permission_level,start_date=datetime.now(),end_date=end_date)
+                db.session.add(share_ued1)
+
+    if ud:
+        flag = True
+        for u in ud:
+            share_ud = ShareCodes.query.filter(and_(
+                ShareCodes.userid == userid, ShareCodes.deviceid == u.deviceid)).first()
+            if share_ud:
+                # 修改逻辑 20231216 xiaojuzi
+                User_Device.query.filter_by(share_code=share_ud.code, shareby_userid=userid,deviceid=u.deviceid).update(
+                    {User_Device.share_code: code})
+
+                share_ud.end_date = end_date
+                share_ud.permission_level = permission_level
+                share_ud.code = code
+            else:
+                share_ud1 = ShareCodes(userid=userid,deviceid=u.deviceid,code=code,type=1,
+                                       permission_level=permission_level,start_date=datetime.now(),end_date=end_date)
+                db.session.add(share_ud1)
+
+
+    db.session.commit()
+
+    if flag:
+        return jsonify(ret_data(SUCCESS,data={
+           'share_code': code
+        }))
+    else:
+        return jsonify(ret_data(SUCCESS))
+
+
+#用户通过分享码绑定设备 xiaojuzi v2 20231214
+@miniprogram_api.route('/userSceneShareBindDevice', methods=['POST'])
+@jwt_required()
+def userSceneShareBindDevice():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('userSceneShareBindDevice api')
+
+    device_share_code = request.form.get('device_share_code', None)
+
+    userid = request.form.get('openid',None)
+
+    if not device_share_code or not userid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    share_codes = ShareCodes.query.filter(ShareCodes.code==device_share_code,ShareCodes.end_date > datetime.now()).all()
+
+    if share_codes:
+        #20231214 xiaojuzi v2 增加逻辑
+        if share_codes[0].userid == userid:
+            return jsonify(ret_data(SHARE_CODE_ERROR,data='不能绑定自己分享的设备！'))
+
+        for share_code in share_codes:
+            ud1 = User_Device.query.filter_by(userid=share_code.userid,deviceid=share_code.deviceid).first()
+            ued1 = UserExternalDevice.query.filter_by(userid=share_code.userid,deviceid=share_code.deviceid).first()
+            if ud1:
+                ud = User_Device.query.filter_by(userid=userid, deviceid=share_code.deviceid).first()
+                # 20231216 xiaojuzi v2 增加逻辑
+                if not ud:
+                    # 判断是否有共享设备的场景没有就创建
+                    dg = DeviceGroup.query.filter_by(id=ud1.sceneid, userid=share_code.userid).first()
+                    dg1 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
+                                                      sub_scenename=dg.sub_scenename).first()
+                    if not dg1:
+                        dg2 = DeviceGroup(userid=userid, scenename=dg.scenename, sub_scenename=dg.sub_scenename)
+                        db.session.add(dg2)
+
+                    dg3 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
+                                                      sub_scenename=dg.sub_scenename).first()
+                    ud2 = User_Device(userid=userid, deviceid=share_code.deviceid, is_choose=True, sceneid=dg3.id,
+                                      status=1, shareby_userid=share_code.userid, share_code=share_code.code)
+                    db.session.add(ud2)
+
+            if ued1:
+                ued = UserExternalDevice.query.filter_by(userid=userid, deviceid=share_code.deviceid).first()
+                if not ued:
+                    # 判断是否有共享设备的场景没有就创建
+                    dg = DeviceGroup.query.filter_by(id=ued1.sceneid, userid=share_code.userid).first()
+                    dg1 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
+                                                      sub_scenename=dg.sub_scenename).first()
+                    if not dg1:
+                        dg2 = DeviceGroup(userid=userid, scenename=dg.scenename, sub_scenename=dg.sub_scenename)
+                        db.session.add(dg2)
+                    dg3 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
+                                                      sub_scenename=dg.sub_scenename).first()
+                    ed = ExternalDevice.query.filter_by(deviceid=share_code.deviceid).first()
+                    ued2 = UserExternalDevice(userid=userid, deviceid=share_code.deviceid, is_choose=True,
+                                              sceneid=dg3.id, status=1, d_type=ed.d_type,
+                                              shareby_userid=share_code.userid, share_code=share_code.code)
+                    db.session.add(ued2)
+
+        db.session.commit()
+
+        return jsonify(ret_data(SUCCESS,data='分享码绑定成功！'))
+
+    return jsonify(ret_data(SHARE_CODE_ERROR))
+
+#用户分享码列表管理 xiaojuzi v2 20231214
+@miniprogram_api.route('/getUserSceneShareCodeList', methods=['POST'])
+@jwt_required()
+def getUserSceneShareCodeList():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('getUserSceneShareCodeList api')
+
+    userid = request.form.get('openid')
+
+    if not userid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    # share_codes = ShareCodes.query.filter(ShareCodes.userid==userid,ShareCodes.end_date > datetime.now()).all()
+
+    #临时修改 20231218
+    share_codes = ShareCodes.query.filter(ShareCodes.userid==userid).all()
+
+    data_list = []
+
+    #新增修改逻辑20231216 xiaojuzi v2
+    if share_codes:
+        ud = User_Device.query.filter_by(shareby_userid=userid).all()
+        ud_dict = {
+            'userid': '',
+            'register_phone': '',
+            'avatar': '',
+            'nickname': '',
+            'Device': [],
+            'ExternalDevice': [],
+        }
+        if ud:
+            for u in ud:
+                user = User.query.filter_by(openid=u.userid).first()
+                d = Device.query.filter_by(deviceid=u.deviceid).first()
+
+                result = find_userid_in_list_of_dicts(data_list, user.openid)
+                if result is not None:
+                    data_list[result]['Device'].append({
+                        'sharecode':u.share_code,
+                        'deviceid':d.deviceid,
+                        'device_name':d.devicename,
+                    })
+                    continue
+
+                ud_dict['userid'] = user.openid
+                ud_dict['register_phone'] = user.register_phone
+                ud_dict['avatar'] = user.avatar
+                ud_dict['nickname'] = user.nickname
+                ud_dict['Device'].append({
+                        'sharecode': u.share_code,
+                        'deviceid':d.deviceid,
+                        'device_name':d.devicename,
+                    })
+
+                data_list.append(ud_dict)
+
+                ud_dict = {
+                    'userid': '',
+                    'register_phone': '',
+                    'avatar': '',
+                    'nickname': '',
+                    'Device': [],
+                    'ExternalDevice':[]
+                }
+
+        ued = UserExternalDevice.query.filter_by(shareby_userid=userid).all()
+        if ued:
+            for ue in ued:
+                user = User.query.filter_by(openid=ue.userid).first()
+                d = ExternalDevice.query.filter_by(deviceid=ue.deviceid).first()
+
+                result = find_userid_in_list_of_dicts(data_list, user.openid)
+                if result is not None:
+                    data_list[result]['ExternalDevice'].append({
+                        'sharecode': ue.share_code,
+                        'deviceid':ue.deviceid,
+                        'device_name':d.devicename,
+                        'd_type':d.d_type,
+                    })
+                    continue
+
+                ud_dict['userid'] = user.openid
+                ud_dict['register_phone'] = user.register_phone
+                ud_dict['avatar'] = user.avatar
+                ud_dict['nickname'] = user.nickname
+                ud_dict['ExternalDevice'].append({
+                        'sharecode': ue.share_code,
+                        'deviceid': ue.deviceid,
+                        'device_name': d.devicename,
+                        'd_type': d.d_type,
+                    })
+
+                data_list.append(ud_dict)
+
+                ud_dict = {
+                    'userid': '',
+                    'register_phone': '',
+                    'avatar': '',
+                    'nickname': '',
+                    'Device': [],
+                    'ExternalDevice': []
+                }
+
+    return jsonify(ret_data(SUCCESS,data=data_list))
+
+
+#用户分享码删除 xiaojuzi v2 20231214 有缺陷 不使用 暂不修改20231226
+# @miniprogram_api.route('/deleteUserSceneShareCode', methods=['POST'])
+# @jwt_required()
+def deleteUserSceneShareCode():
+
+    logging.info('deleteUserSceneShareCode api')
+
+    share_code_id = request.form.get('share_code_id')
+
+    if not share_code_id:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    share_code = ShareCodes.query.filter_by(id=share_code_id).first()
+
+    if share_code:
+        db.session.delete(share_code)
+        db.session.commit()
+        return jsonify(ret_data(SUCCESS))
+    else:
+        return jsonify(ret_data(SHARE_CODE_ERROR))
+
+#用户分享码详情修改 xiaojuzi v2 20231214 有缺陷 不使用 暂不修改20231226
+# @miniprogram_api.route('/updateUserSceneShareCode', methods=['POST'])
+# @jwt_required()
+def updateUserSceneShareCode():
+
+    logging.info('updateUserSceneShareCode api')
+    share_code_id = request.form.get('share_code_id')
+    permission_level = request.form.get('permission_level',None)
+    end_date = request.form.get('end_date',None)
+
+    if not share_code_id:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    share_code = ShareCodes.query.filter_by(id=share_code_id).first()
+
+    if share_code:
+        if end_date:
+            date_format = '%Y-%m-%d %H:%M:%S'
+            end_date = datetime.strptime(end_date, date_format)
+            share_code.end_date = end_date
+        if permission_level:
+            share_code.permission_level = permission_level
+        db.session.commit()
+        return jsonify(ret_data(SUCCESS))
+    else:
+        return jsonify(ret_data(SHARE_CODE_ERROR))
+
+#用户分享码下删除通过分享绑定的用户 xiaojuzi v2 20231216
+@miniprogram_api.route('/deleteUserSceneShareCodeBindUser', methods=['POST'])
+@jwt_required()
+def deleteUserSceneShareCodeBindUser():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('deleteUserSceneShareCodeBindUser api')
+    share_userid = request.form.get('share_userid')
+    userid = request.form.get('userid')
+    if not share_userid or not userid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    if share_userid == userid:
+        return jsonify(ret_data(SHARE_CODE_ERROR))
+
+    ud = User_Device.query.filter_by(userid=userid,shareby_userid=share_userid,status=1).all()
+    if ud:
+        for u in ud:
+            db.session.delete(u)
+    ued = UserExternalDevice.query.filter_by(userid=userid,shareby_userid=share_userid,status=1).all()
+    if ued:
+        for ue in ued:
+            db.session.delete(ue)
+
+    db.session.commit()
+
+    return jsonify(ret_data(SUCCESS,data='删除成功'))
+
 
 #注销账号  xiaojuzi v2 20231205
 @miniprogram_api.route('/cancelUserAccount', methods=['POST'])
@@ -427,14 +1455,15 @@ def cancelUserAccount():
     phone = request.form.get('register_phone')
 
     user = User.query.filter(or_(User.openid==openid,User.register_phone==phone)).first()
-
+    #20231207 xiaojuzi 新增用户头像
     if user:
         logout_user = LogoutUser(openid=user.openid,register_phone=user.phone,
                                  password=user.password,nickname=user.nickname,
                                  sex=user.sex,true_name=user.true_name,
                                  phone=user.phone,address=user.address,
                                  login_count=user.login_count,
-                                 ip=user.ip,uptime=user.uptime)
+                                 ip=user.ip,uptime=user.uptime,
+                                 avatar=user.avatar)
 
         db.session.add(logout_user)
         db.session.delete(user)
@@ -486,6 +1515,13 @@ def sendSms():
 
         return jsonify(ret_data(SUCCESS, data=response))
 
+#20231216 xiaojuzi 查找list集合里字典某给key是否存在
+def find_userid_in_list_of_dicts(lst, target_userid):
+    for i, d in enumerate(lst):
+        if 'userid' in d and d['userid'] == target_userid:
+            return i
+    return None
+
 
 #xiaojuzi v2 20231130 判断验证码是否正确
 def check_sms_code(phone,code,minute):
@@ -531,14 +1567,29 @@ def check_sms_send_count(phone,count):
     return sms_count > count
 
 
+#xiaojuzi 设备分享码生成 v2 20231214
+def generate_device_share_code():
+    characters = string.digits + string.ascii_letters
+    device_share_code = ''.join(random.choice(characters) for _ in range(6))
+    return str(device_share_code)
+
+
 #xiaojuzi 验证码生成 v2 20231129
 def generate_verification_code():
 
-    characters = string.digits
-    verification_code = ''.join(random.choice(characters) for _ in range(6))
-    return verification_code
+    first_digit = random.choice(string.digits[1:])
+    remaining_digits = ''.join(random.choice(string.digits) for _ in range(5))
+    verification_code = first_digit + remaining_digits
+    return str(verification_code)
 
     # return str(random.randint(1000, 9999))
+
+#xiaojuzi 默认用户名生成 v2 20231207
+def generate_nickname():
+
+    characters = string.ascii_letters + string.digits
+    nickname = ''.join(random.choice(characters) for _ in range(12))
+    return nickname
 
 
 #xiaojuzi 密码复杂度校验 v2 20231128
@@ -557,12 +1608,17 @@ def validate_password(password):
 
 #xiaojuzi 手机号格式校验 v2 20231128
 def validate_phone_number(phone_number):
+
     pattern = r'^(?:(?:\+|00)86)?1[3-9]\d{9}$'
+
+    if phone_number is None:
+        return False
 
     if re.match(pattern, phone_number):
         return True
     else:
         return False
+
 
 @miniprogram_api.route('/multi_device_manage', methods=['POST'])
 # @decorator_sign
@@ -577,18 +1633,84 @@ def multi_device_manage():
     openid = request.form.get('openid', None)
 
     #20231113 xiaojuzi v2 分组逻辑新增
-    groupid = request.form.get('groupid', 1)
+    # groupid = request.form.get('groupid', 1)
 
     user = User.query.filter_by(openid=openid).first()
 
-    if not user or not groupid:
+    if not user:
         return jsonify(ret_data(PARAMS_ERROR))
 
     #获取该用户的设备信息 分组逻辑新增 20231113 xiaojuzi
-    devices = User_Device.query.filter_by(userid=openid,groupid=groupid)
+    devices = User_Device.query.filter_by(userid=openid)
 
     if not devices:
         return jsonify(ret_data(UNBIND_DEVICE))
+
+    #20231212 xiaojuzi v2 画小宇设备列表分组条件判断查询
+    sceneid = request.form.get('sceneid', None)
+    if sceneid:
+        devices = User_Device.query.filter_by(userid=openid,sceneid=sceneid).all()
+
+        device_data = []
+
+        device_dict = {
+            'deviceid': '',
+            'devicename': '',
+            'is_choose': '',
+            'is_master': '',
+            'wakeword': '',
+            'volume': '',
+            'direction': '',
+            'status': '',
+            'data': {
+                'dev_online': '',
+                'msg': ''
+            }
+        }
+
+        for device in devices:
+            device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
+            device_dict['deviceid'] = device1.deviceid
+            device_dict['devicename'] = device1.devicename
+            device_dict['is_choose'] = device.is_choose
+
+            device_dict['wakeword'] = device1.wakeword
+            device_dict['is_master'] = device1.is_master
+            device_dict['volume'] = device1.volume
+            device_dict['direction'] = device1.direction
+
+            device_dict['status'] = device.status
+
+
+            if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
+
+                device_dict['data']['dev_online'] = True
+                device_dict['data']['msg'] = '设备在线'
+
+            else:
+
+                device_dict['data']['dev_online'] = False
+                device_dict['data']['msg'] = '设备离线'
+
+            device_data.append(device_dict)
+
+            device_dict = {
+                'deviceid': '',
+                'devicename': '',
+                'is_choose': '',
+                'is_master': '',
+                'wakeword': '',
+                'volume': '',
+                'direction': '',
+                'status': '',
+                'data': {
+                    'dev_online': '',
+                    'msg': ''
+                }
+            }
+
+        return jsonify(ret_data(SUCCESS, data=device_data))
 
     #判断设备是否在线
     device_data = []
@@ -599,7 +1721,6 @@ def multi_device_manage():
         'devicename': '',
         'apikey': '',
         'is_choose': '',
-        'groupid': '',
         'is_master': '',
         'wakeword': '',
         'volume': '',
@@ -618,7 +1739,6 @@ def multi_device_manage():
         device_dict['deviceid'] = device1.deviceid
         device_dict['devicename'] = device1.devicename
         device_dict['is_choose'] = device.is_choose
-        device_dict['groupid'] = device.groupid
 
         device_dict['apikey'] = device1.apikey
         device_dict['wakeword'] = device1.wakeword
@@ -645,7 +1765,6 @@ def multi_device_manage():
             'devicename': '',
             'apikey': '',
             'is_choose': '',
-            'groupid': '',
             'is_master': '',
             'wakeword': '',
             'volume': '',
@@ -1609,7 +2728,6 @@ def check_dev_bind():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-
     openid = request.form.get('openid', None)
     user = User.query.filter_by(openid=openid).first()
     if not user:
@@ -1769,17 +2887,62 @@ def getBindExternalDevice():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
     openid = request.form.get('openid', None)
 
-    #20231113 xiaojuzi v2 分组逻辑新增
-    groupid = request.form.get('groupid', 1)
-
-    if not groupid:
-        return jsonify(ret_data(PARAMS_ERROR))
-
-    # 获取该用户绑定的外接设备信息 groupid 分组逻辑新增 20231113 xiaojuzi
-    devices = UserExternalDevice.query.filter_by(userid=openid,groupid=groupid)
+    # 获取该用户绑定的外接设备信息  20231113 xiaojuzi
+    devices = UserExternalDevice.query.filter_by(userid=openid)
 
     if not devices:
         return jsonify(ret_data(UNBIND_DEVICE))
+
+    #画小宇外设设备列表分组条件判断查询 xiaojuzi v2 20231212
+    sceneid = request.form.get('sceneid', None)
+    if sceneid:
+        devices = UserExternalDevice.query.filter_by(userid=openid, sceneid=sceneid).all()
+
+        device_data = []
+
+        # 初始化
+        device_dict = {
+            'deviceid': '',
+            'devicename': '',
+            'is_choose': '',
+            'd_type': '',
+            'mac': '',
+            'data': {
+                'dev_online': '',
+                'msg': ''
+            }
+        }
+
+        for device in devices:
+            device1 = ExternalDevice.query.filter_by(deviceid=device.deviceid).first()
+
+            device_dict['deviceid'] = device1.deviceid
+            device_dict['devicename'] = device1.devicename
+            device_dict['d_type'] = device.d_type
+            device_dict['mac'] = device1.mac
+
+            device_dict['is_choose'] = device.is_choose
+
+            device_dict['data']['msg'] = '设备存在'
+
+            device_data.append(device_dict)
+
+            # 初始化
+            device_dict = {
+                'id': '',
+                'deviceid': '',
+                'devicename': '',
+                'is_choose': '',
+                'd_type': '',
+                'mac': '',
+                'data': {
+                    'dev_online': '',
+                    'msg': ''
+                }
+            }
+
+        return jsonify(ret_data(SUCCESS, data=device_data))
+
 
     device_data = []
 
@@ -1791,7 +2954,6 @@ def getBindExternalDevice():
         'is_choose': '',
         'd_type': '',
         'mac': '',
-        'groupid': '',
         'data': {
             'dev_online': '',
             'msg': ''
@@ -1815,7 +2977,6 @@ def getBindExternalDevice():
         device_dict['mac'] = device1.mac
 
         device_dict['is_choose'] = device.is_choose
-        device_dict['groupid'] = device.groupid
 
         device_dict['data']['msg'] = '设备存在'
 
@@ -1829,7 +2990,6 @@ def getBindExternalDevice():
             'is_choose': '',
             'd_type': '',
             'mac': '',
-            'groupid': '',
             'data': {
                 'dev_online': '',
                 'msg': ''
@@ -1867,7 +3027,6 @@ def getUnbindExternalDevice():
         'is_choose': '',
         'd_type': '',
         'mac': '',
-        'groupid': '',
         'data': {
             'dev_online': '',
             'msg': ''
@@ -1903,7 +3062,6 @@ def getUnbindExternalDevice():
         device_dict['mac'] = device1.mac
 
         device_dict['is_choose'] = device.is_choose
-        device_dict['groupid'] = device.groupid
 
         device_dict['data']['msg'] = '设备存在'
 
@@ -1917,7 +3075,6 @@ def getUnbindExternalDevice():
             'is_choose': '',
             'd_type': '',
             'mac': '',
-            'groupid': '',
             'data': {
                 'dev_online': '',
                 'msg': ''
@@ -1979,14 +3136,20 @@ def createExternalDevice():
         )
 
         db.session.add(de)
+    else:
+        #优化逻辑20231216
+        device.devicename = devicename
+        device.d_type = d_type
+
 
     if not device1:
 
-        #用户新增默认绑定此外接设备
+        #用户新增默认绑定此外接设备 20231224 主动绑定
         de1 = UserExternalDevice(
             deviceid=deviceid,
             userid = openid,
-            d_type=d_type
+            d_type=d_type,
+            status=0,
         )
 
         db.session.add(de1)
@@ -2058,6 +3221,75 @@ def multiExternalDeviceManage():
 
     if not devices:
         return jsonify(ret_data(UNBIND_DEVICE))
+
+    # 20231218 xiaojuzi v2 画小宇设备列表分组条件判断查询
+    sceneid = request.form.get('sceneid', None)
+    if sceneid:
+        devices = User_Device.query.filter_by(userid=openid, sceneid=sceneid).all()
+
+        # 判断设备
+        device_data = []
+
+        device_dict = {
+            'id': '',
+            'deviceid': '',
+            'devicename': '',
+            'apikey': '',
+            'is_choose': '',
+            'is_master': '',
+            'wakeword': '',
+            'volume': '',
+            'data': {
+                'dev_online': '',
+                'device_external_data': ''
+            }
+        }
+
+        for device in devices:
+
+            device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
+            # 获取用户绑定的外设设备信息 20231026
+            device_external_data = getExternalDevice(openid, device.deviceid)
+
+            device_dict['id'] = device1.id
+            device_dict['deviceid'] = device1.deviceid
+            device_dict['devicename'] = device1.devicename
+            device_dict['is_choose'] = device.is_choose
+            device_dict['apikey'] = device1.apikey
+            device_dict['wakeword'] = device1.wakeword
+            device_dict['is_master'] = device1.is_master
+            device_dict['volume'] = device1.volume
+            device_dict['data']['device_external_data'] = device_external_data
+
+            if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
+
+                device_dict['data']['dev_online'] = True
+
+            else:
+
+                device_dict['data']['dev_online'] = False
+
+            # 添加进去
+            device_data.append(device_dict)
+
+            # 初始化
+            device_dict = {
+                'id': '',
+                'deviceid': '',
+                'devicename': '',
+                'apikey': '',
+                'is_choose': '',
+                'is_master': '',
+                'wakeword': '',
+                'volume': '',
+                'data': {
+                    'dev_online': '',
+                    'device_external_data': ''
+                }
+            }
+
+        return jsonify(ret_data(SUCCESS, data=device_data))
 
     #判断设备
     device_data = []
@@ -2191,12 +3423,17 @@ def tempPushAnswerToKeyBoard():
 
     parentid = request.form.get('parentid', None)
 
+    #20231229 xiaojuzi
+    courseid = request.form.get('courseid', None)
 
     if not gametype or not answer or not parentid:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    #20231121 xiaojuzi v2
-    mqttPushAnswerToKeyBoard(gametype, answer,parentid)
+    #20231229 xiaojuzi
+    if courseid:
+        mqttPushAnswerToKeyBoard(gametype, answer,parentid,courseid)
+    else:
+        mqttPushAnswerToKeyBoard(gametype, answer, parentid)
 
     return jsonify(ret_data(SUCCESS))
 
@@ -2206,9 +3443,11 @@ def tempPushAnswerToKeyBoard():
 @jwt_required()
 # @decorator_sign
 def getCourseQuestionData():
+
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
     openid = request.form.get('openid', None)
     user = User.query.filter_by(openid=openid).first()
 
@@ -2294,60 +3533,6 @@ def updateExternalDevceName():
     return jsonify(ret_data(UNBIND_DEVICE))
 
 
-#查询个人注册详细信息 xiaojuzi v2 20231123  临时逻辑
-@miniprogram_api.route('/getUserInfo', methods=['POST'])
-@jwt_required()
-# @decorator_sign
-def getUserInfo():
-    current_user = get_jwt_identity()
-    if not current_user:
-        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    userid = request.form.get('openid', None)
-
-    user = User.query.filter_by(openid=userid).first()
-
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
-
-    data = model_to_dict(user)
-
-    return jsonify(ret_data(SUCCESS, data=data))
-
-
-#查询分组信息 xiaojuzi v2 20231123  临时逻辑
-@miniprogram_api.route('/getGroup', methods=['POST'])
-@jwt_required()
-# @decorator_sign
-def getGroup():
-    current_user = get_jwt_identity()
-    if not current_user:
-        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    group = DeviceGroup.query.all()
-
-    group_data = []
-    # 初始化
-    group_dict = {
-        'id': '',
-        'groupname': '',
-        'address': '',
-    }
-
-    for g in group:
-        group_dict['id'] = g.id
-        group_dict['groupname'] = g.groupname
-        group_dict['address'] = g.address
-
-        group_data.append(group_dict)
-
-        group_dict = {
-            'id': '',
-            'groupname': '',
-            'address': '',
-        }
-
-    return jsonify(ret_data(SUCCESS, data=group_data))
-
-
 # 外接多设备与画小宇设备连接管理 获取用户画小宇设备绑定的外设列表 xiaojuzi v2 20231026
 def getExternalDevice(openid: str,deviceid: str):
 
@@ -2367,7 +3552,6 @@ def getExternalDevice(openid: str,deviceid: str):
         'is_choose': '',
         'd_type': '',
         'mac': '',
-        'groupid': ''
         }
 
     for device in devices:
@@ -2385,7 +3569,6 @@ def getExternalDevice(openid: str,deviceid: str):
 
         device_dict['d_type'] = device.d_type
         device_dict['is_choose'] = device.is_choose
-        device_dict['groupid'] = device.groupid
         device_dict['external_deviceid'] = device.external_deviceid
 
 
@@ -2399,7 +3582,6 @@ def getExternalDevice(openid: str,deviceid: str):
             'is_choose': '',
             'd_type': '',
             'mac': '',
-            'groupid': ''
         }
 
     if not device_data:
@@ -2442,7 +3624,6 @@ def is_nested_list(lst):
 
     return True
 
-
 # @miniprogram_api.route('/unbind_device', methods=['POST'])
 # @decorator_sign
 def unbind_device():
@@ -2483,7 +3664,7 @@ def share_device():
         return jsonify(ret_data(UNBIND_DEVICE))
 
     #暂定随机分享一个自己绑定的设备
-    device = Device.query.filter_by(deviceid=random.choice(user_device.deviceid)).first()
+    device = Device.query.filter_by(deviceid=random.choice(user_device).deviceid).first()
 
     qrcode = HOST + '/' + device.qrcode_suffix_data
 

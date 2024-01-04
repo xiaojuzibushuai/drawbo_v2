@@ -11,7 +11,7 @@ class ExternalDevice(db.Model):
     devicename = db.Column(db.String(32), default="")  # 设备名字 xiaojuzi
     mac = db.Column(db.String(16), default="")  # mac地址
 
-    d_type = db.Column(db.Integer, default=3)  # 外设类型 0投影 1导航机器人 2键盘 3其他
+    d_type = db.Column(db.Integer, default=3)  # 外设类型 0投影、摄像头 1导航机器人 2键盘 3其他
 
     qrcode_suffix_data = db.Column(db.Text, default="")                     # 设备二维码
 

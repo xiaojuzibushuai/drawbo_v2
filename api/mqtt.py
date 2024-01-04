@@ -3,13 +3,14 @@ import os
 import time
 from datetime import datetime, timedelta
 
+import requests
 from flask import request, jsonify, Blueprint
 import logging
 
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func, Integer, cast
 
-from config import HOST
+from config import HOST, ADMIN_HOST
 from models.course import Course, DeviceCourse
 from models.device import Device
 from models.key_board_data import KeyBoardData
@@ -423,7 +424,6 @@ def getKeyboardProcessData(results: list) -> list:
         data_dict['id'] = d.id
         data_dict['devicename'] = d.devicename
 
-
         device_dict['parentid'] = d.parentid
         device_dict['parentname'] = d.parentname
 
@@ -605,9 +605,9 @@ def getKeyboardDataImpl():
 
 # @mqtt_api.route('/mqttPushAnswerToKeyBoard', methods=['POST'])
 # xiaojuzi 20231030 给键盘推送数据
-def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str):
+def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str,courseid=None):
 
-    logging.info(' gametype: %s , answer: %s ,parentid: %s ' % (gametype, answer,parentid))
+    logging.info(' gametype: %s , answer: %s ,parentid: %s ,courseid %s' % (gametype, answer,parentid,courseid))
 
     if not gametype or not answer or not parentid:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -615,7 +615,7 @@ def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str):
     topic = '/keyboard/answer/'
 
     #20231121 xiaojuzi v2 数据面板修改游戏类型
-    push_json = f"-{parentid}-{gametype}{answer}"
+    push_json = f"-{parentid}-{gametype}{answer}-{courseid}"
 
     logging.info("游戏类型及其答案更新：" + push_json)
 
@@ -697,11 +697,11 @@ def mqttPushCustomPictureDataImpl():
 
             return jsonify(ret_data(result))
 
-        else:
-            return jsonify(ret_data(UNBIND_DEVICE))
+    return jsonify(ret_data(UNBIND_DEVICE))
+
 
 @mqtt_api.route('/mqttPushCameraPictureDataImpl', methods=['POST'])
-#封装实现 外部接口 非小程序接口 xiaojuzi 20231115 摄像头拍照画画传到画小宇设备上画画
+#封装实现 外部接口 非小程序接口 xiaojuzi 20231115 摄像头拍照画画传到画小宇设备上画画 dengshuibin
 def mqttPushCameraPictureDataImpl():
 
     #获取图像二进制文件 硬件要求这样传输
@@ -721,28 +721,30 @@ def mqttPushCameraPictureDataImpl():
     logging.info('临时解析出mac地址：'+deviceid)
 
     #生成文件名
-    file_dir = create_noncestr(8)
+    # file_dir = create_noncestr(8)
+    #文件名格式修改 20231216
+    temp = str(int(time.time())) + create_noncestr(4)
+    temp1 = str(datetime.now().year) + '/' + str(datetime.now().month)
+    file_dir = temp1 + "/" + temp
 
-    file_name = file_dir
+    file_name = temp
 
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
 
-    # file_dir = create_noncestr(8)
-    # file_dir = file_name.split('.')[0]
 
     #要保存的文件的文件夹
     save_file_floder = static_folder + f'/camerapicture/{file_dir}'
 
     save_file_png = save_file_floder + f'/{file_name}.png'
 
-    save_file_svg = save_file_floder + f'/{file_dir}.svg'
+    save_file_svg = save_file_floder + f'/{file_name}.svg'
 
-    save_file_gcode =save_file_floder + f'/{file_dir}.gcode'
+    save_file_gcode =save_file_floder + f'/{file_name}.gcode'
 
-    save_file_dat =save_file_floder + f'/{file_dir}.dat'
+    save_file_dat =save_file_floder + f'/{file_name}.dat'
 
     #生成lrc文件
-    init_lrc_file = file_dir + '.lrc'
+    init_lrc_file = file_name + '.lrc'
 
     # 生成dat文件
     # init_dat_file = file_dir + '.dat'
@@ -779,13 +781,85 @@ def mqttPushCameraPictureDataImpl():
             except Exception as e:
                 print("文件保存或转换失败:", str(e))
 
-            result = mqttPushCameraPictureData(de.userid,de.external_deviceid,file_dir)
+            result = mqttPushCameraPictureData(de.userid,de.external_deviceid,temp1,temp)
 
             return jsonify(ret_data(result))
 
-        #20231124 v2 xiaojuzi
-        else:
-            return jsonify(ret_data(UNBIND_DEVICE))
+    return jsonify(ret_data(UNBIND_DEVICE))
+
+@mqtt_api.route('/mqttPushKeyImage', methods=['POST'])
+#封装实现 外部接口 非小程序接口 xiaojuzi 20231115 按键获取后台dat传到画小宇设备上画画 dengshuibin
+def mqttPushKeyImage():
+
+    deviceid = request.headers.get('deviceid')
+    courseid = request.headers.get('courseid')
+    number = request.headers.get('number')
+
+    if not deviceid or not courseid or not number:
+
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    deviceid = deviceid.replace(":", "")
+    logging.info('临时解析出mac地址：'+deviceid)
+
+    #生成文件名
+    # file_dir = create_noncestr(8)
+    temp = str(int(time.time())) + create_noncestr(4)
+    temp1 = str(datetime.now().year) + '/' + str(datetime.now().month)
+    file_dir = temp1 + "/" + temp
+
+    file_name = temp
+
+    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
+
+    # file_dir = create_noncestr(8)
+    # file_dir = file_name.split('.')[0]
+
+    #要保存的文件的文件夹
+    save_file_floder = static_folder + f'/keyboard/{file_dir}'
+
+    save_file_dat =save_file_floder + f'/{file_name}.dat'
+
+    #生成lrc文件
+    init_lrc_file = file_name + '.lrc'
+
+    # 生成dat文件
+    # init_dat_file = file_dir + '.dat'
+
+    lrc_data = '000000000000000000000000000000000'
+
+    logging.info('drawbo:' + os.getenv('drawbo'))
+    device = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
+    logging.info('device' + str(len(device)))
+
+    if not device:
+        return jsonify(ret_data(UNBIND_DEVICE))
+
+    #修改逻辑 只允许一个投影绑定一个画小宇设备 不允许绑定多个先 xiaojuzi20231108
+    for de in device:
+
+        if de.external_deviceid:
+
+            #延时保存文件 20231108
+            try:
+                # 文件夹不存在则创建
+                if not os.path.exists(save_file_floder):
+                    os.makedirs(save_file_floder)
+
+                option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid}&number={number}"
+                getOptionAndDownload(option_url,save_file_dat)
+
+                # 创建lrc文件
+                initAutoPictureFile(save_file_floder, init_lrc_file, lrc_data)
+
+            except Exception as e:
+                print("文件保存或转换失败:", str(e))
+
+            result = mqttPushKeyBoardPictureData(de.userid,de.external_deviceid,temp1,temp)
+
+            return jsonify(ret_data(result))
+
+    return jsonify(ret_data(UNBIND_DEVICE))
 
 @mqtt_api.route('/testMqttPushFacePictureDataImpl', methods=['POST'])
 #封装实现 外部接口 小程序接口 xiaojuzi 20231120 人脸上传让机器画人脸 临时测试接口
@@ -794,8 +868,23 @@ def testMqttPushFacePictureDataImpl():
     # 获取图像
     file = request.files.get('file')
 
-    if not file:
+    #获取用户选择的设备 20240102 xiaojuzi
+    deviceid = request.form.get('deviceid',None)
+    openid = request.form.get('openid', None)
+    rotate = request.form.get('rotate', None)
+
+    #临时给三个
+    deviceid = '8c000c6d6004c991e52'
+    openid = 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc'
+    # rotate = 2
+
+    if not file or not openid:
         return jsonify(ret_data(PARAMS_ERROR))
+
+    device = Device.query.filter_by(deviceid=deviceid).first()
+
+    if not device:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
 
     # 获取文件名
     file_name = file.filename
@@ -835,17 +924,61 @@ def testMqttPushFacePictureDataImpl():
         # 创建lrc文件
         initAutoPictureFile(save_file_floder, init_lrc_file, lrc_data)
 
+        #20240102 xiaojuzi v2 rotate 旋转角度
         # 图像转为dat文件
-        test_convert_image_to_dat(save_file_png, save_file_svg, save_file_gcode, save_file_dat)
+        test_convert_image_to_dat(rotate,save_file_png, save_file_svg, save_file_gcode, save_file_dat)
+
 
     except Exception as e:
         print("文件保存或转换失败:", str(e))
 
     # return jsonify(ret_data(SUCCESS))
-
-    result = mqttPushFacePictureDataImpl('oN3gn5BKNImmh6ZFA5YDFmbwlDcc','8c000c6d6004c9221d2', file_dir)
+    #TODO 待修改为自动选择哪台设备画人像 20240102
+    result = mqttPushFacePictureDataImpl(openid,deviceid, file_dir)
 
     return jsonify(ret_data(result))
+
+@mqtt_api.route('/testMqttPushGirlDataImpl', methods=['POST'])
+#临时接口小女孩骑自行车dat xiaojuzi 20231207
+def testMqttPushGirlDataImpl():
+
+    arg = 'girl'
+
+    push_json = {
+        'type': 2,
+        'deviceid': '8c000c6d6004c9221d2',
+        'fromuser': 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc',
+        'message': {
+            # arg为文件夹名字  xiaojuzi 20231120
+            'arg': arg,
+            'url': HOST + '/test/' + arg
+        }
+    }
+
+    errcode = send_message(push_json)
+
+    return errcode
+
+@mqtt_api.route('/test1MqttPushGirlDataImpl', methods=['POST'])
+#临时接口小女孩吃鸡腿dat xiaojuzi 20231207
+def test1MqttPushGirlDataImpl():
+
+    arg = 'girl1'
+
+    push_json = {
+        'type': 2,
+        'deviceid': '8c000c6d6004c9221d2',
+        'fromuser': 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc',
+        'message': {
+            # arg为文件夹名字  xiaojuzi 20231120
+            'arg': arg,
+            'url': HOST + '/test/' + arg
+        }
+    }
+
+    errcode = send_message(push_json)
+
+    return errcode
 
 
 #创建初始化lrc文件 xiaojuzi 20231027
@@ -896,8 +1029,8 @@ def mqttPushCustomPictureData(openid: str,deviceid: str,arg: str):
 
     return errcode
 
-#下载用户摄像头画画的图片生成的dat文件 20231110 xiaojuzi v2  注意：要自己生成一个为0的lrc文件不然机器执行会报错
-def mqttPushCameraPictureData(openid: str,deviceid: str,arg: str):
+#下载用户摄像头画画的图片生成的dat文件 20231110 xiaojuzi v2  注意：要自己生成一个为0的lrc文件不然机器执行会报错 dengshuibin
+def mqttPushCameraPictureData(openid: str,deviceid: str,arg: str,temp=None):
 
     """
     数据文件 xiaojuzi v2
@@ -917,8 +1050,8 @@ def mqttPushCameraPictureData(openid: str,deviceid: str,arg: str):
         'fromuser': openid,
         'message': {
             #arg为文件夹名字  xiaojuzi 20231110
-            'arg': arg,
-            'url': HOST + '/camerapicture/' + arg
+            'arg': temp,
+            'url': HOST + '/camerapicture/' + arg + '/' + temp
         }
     }
 
@@ -928,6 +1061,68 @@ def mqttPushCameraPictureData(openid: str,deviceid: str,arg: str):
 
     return errcode
 
+def mqttPushKeyBoardPictureData(openid: str,deviceid: str,arg: str,temp=None):
+
+    """
+    数据文件 xiaojuzi v2
+    openid: 消息来源ID，微信openid/后台
+    deviceid: 设备id
+    :return:
+    """
+
+    logging.info('openid: %s, deviceid: %s, arg: %s' % (openid, deviceid,arg))
+
+    if not openid or not deviceid or not arg:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    push_json = {
+        'type': 2,
+        'deviceid': deviceid,
+        'fromuser': openid,
+        'message': {
+            #arg为文件夹名字  xiaojuzi 20231110
+            'arg': temp,
+            'url': HOST + '/keyboard/' + arg + '/' + temp
+        }
+    }
+
+    logging.info(push_json)
+
+    errcode = send_message(push_json)
+
+    return errcode
+
+#下载上传的人脸转换数据 临时测试 20231120 xiaojuzi v2  注意：要自己生成一个为0的lrc文件不然机器执行会报错
+def mqttPushFacePictureDataImpl(openid: str,deviceid: str,arg: str):
+
+    """
+    数据文件 xiaojuzi v2
+    openid: 消息来源ID，微信openid/后台
+    deviceid: 设备id
+    :return:
+    """
+
+    logging.info('openid: %s, deviceid: %s, arg: %s' % (openid, deviceid,arg))
+
+    if not openid or not deviceid or not arg:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    push_json = {
+        'type': 2,
+        'deviceid': deviceid,
+        'fromuser': openid,
+        'message': {
+            #arg为文件夹名字  xiaojuzi 20231120
+            'arg': arg,
+            'url': HOST + '/test/' + arg
+        }
+    }
+
+    logging.info(push_json)
+
+    errcode = send_message(push_json)
+
+    return errcode
 
 #下载上传的人脸转换数据 临时测试 20231120 xiaojuzi v2  注意：要自己生成一个为0的lrc文件不然机器执行会报错
 def mqttPushFacePictureDataImpl(openid: str,deviceid: str,arg: str):
@@ -1466,4 +1661,34 @@ def sortDeviceByMaster(openid: str)-> list:
             else:
                 device_list.append(device1)
 
+    #按照使用次数排序
+    # device_list = sorted(device_list,key=lambda x:x['use_count'], reverse=True)
+
     return device_list
+
+
+# 请求接口获取 选项 并 下载 dat dengshuibin
+def getOptionAndDownload(url:str,save_path:str):
+    logging.info('url: %s' % (url))
+    # print('url: %s' % (url))
+    response = requests.post(url)
+
+    # 检查请求是否成功
+    if response.status_code == 200:
+        # 处理返回的数据
+        data = response.json()  # 使用 .json() 方法将返回的 JSON 数据转换为 Python 对象
+        url = data['data']['url']
+        print("dat地址:"+url)  # 输出返回的数据
+
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            # 如果请求成功，将文件内容写入本地文件
+            with open(save_path, 'wb') as f:
+                f.write(response.content)
+                print('文件保存成功')
+        else:
+            print('下载失败，状态码:', response.status_code)
+
+    else:
+        print("获取选项接口失败:", response.status_code)

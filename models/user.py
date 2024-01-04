@@ -8,14 +8,15 @@ class User(db.Model):
     """
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
-    register_phone = db.Column(db.String(15), default=False)        # 注册手机号
-    password = db.Column(db.String(15), default='123456')        # 用户密码 xiaojuzi updateby20231113
+    register_phone = db.Column(db.String(15), default='')        # 注册手机号
+    password = db.Column(db.String(15), default='')        # 用户密码 xiaojuzi updateby20231113
+    avatar = db.Column(db.String(512), default='')              # xiaojuzi v2 头像
 
-    nickname = db.Column(db.String(20))                             # 用户昵称
+    nickname = db.Column(db.String(64))                             # 用户昵称
     openid = db.Column(db.String(64))                               # 微信openid
     sex = db.Column(db.SmallInteger, default=0)               # 性别
-    true_name = db.Column(db.String(20))                            # 真实姓名
-    phone = db.Column(db.String(15))                                # 手机号
+    true_name = db.Column(db.String(64))                            # 真实姓名
+    phone = db.Column(db.String(15), default='')                                # 手机号
     address = db.Column(db.String(255))                             # 地址
     verification_code = db.Column(db.String(20))                    # 验证码
     code_expire_time = db.Column(db.Integer, default=0)             # 验证码发送时间过期

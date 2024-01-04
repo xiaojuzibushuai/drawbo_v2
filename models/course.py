@@ -14,6 +14,9 @@ class Course(db.Model):
     data_files = db.Column(db.Text, nullable=True)
     lrc_files = db.Column(db.Text, nullable=True)
     img_files = db.Column(db.Text, nullable=True)
+
+    video_files = db.Column(db.Text, nullable=True) #20231227
+
     is_public = db.Column(db.Integer, default=1)
     love_number = db.Column(db.Integer, default=0)                                          # 喜爱度
     hard_number = db.Column(db.Integer, default=0)                                          # 难度

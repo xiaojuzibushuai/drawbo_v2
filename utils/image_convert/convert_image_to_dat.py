@@ -59,18 +59,22 @@ def convert_camera_image_to_dat(png_file_path,svg_file_path,gcode_file_path,dat_
     convert_gcode_to_dat(gcode_file_path,dat_file_path)
 
 
-#预处理图片 20231122
-def pre_convert_png_to_svg(png_file_path, svg_file_path):
+#预处理图片 20231122   update by xiaojuzi 20240102 加入旋转
+def pre_convert_png_to_svg(rotate,png_file_path, svg_file_path):
     try:
         # pre_cv_png_to_svg(png_file_path, png_file_path)
-        vtracer.convert_image_to_svg_py(png_file_path, svg_file_path, colormode='binary')
+
+        # vtracer.convert_image_to_svg_py(png_file_path, svg_file_path, colormode='binary')
+
+        cv_png_to_svg(rotate,png_file_path, svg_file_path)
+
     except Exception as e:
         print('面板图片转SVG文件时出现异常:', str(e))
         logging.info('图片转SVG文件时出现异常:', str(e))
-def test_convert_image_to_dat(png_file_path,svg_file_path,gcode_file_path,dat_file_path):
+def test_convert_image_to_dat(rotate,png_file_path,svg_file_path,gcode_file_path,dat_file_path):
 
     #1、图片转svg文件
-    pre_convert_png_to_svg(png_file_path,svg_file_path)
+    pre_convert_png_to_svg(rotate,png_file_path,svg_file_path)
 
     #2、svg文件转Gcode文件
     svg_to_gcode(svg_file_path,gcode_file_path)

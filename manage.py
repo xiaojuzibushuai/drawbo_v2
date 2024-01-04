@@ -1,5 +1,6 @@
 from api.auth import auth_api
 from api.subscribe_mqtt import mqtt_sub_api
+from api.web_back import web_back_api
 from sys_utils import app, db
 import os
 from logging.config import dictConfig
@@ -119,6 +120,8 @@ app.register_blueprint(mqtt_api)
 app.register_blueprint(iot_api)
 
 app.register_blueprint(mqtt_sub_api)
+
+app.register_blueprint(web_back_api)
 
 
 # logger

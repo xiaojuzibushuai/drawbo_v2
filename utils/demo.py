@@ -28,4 +28,20 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+
+    data_list = [
+        {"userid": 1, "name": "Alice"},
+        {"userid": 2, "name": "Bob"},
+        # {"userid": 1, "name": "Charlie"},
+        # {"userid": 3, "name": "David"},
+        # {"userid": 2, "name": "Eve"}
+    ]
+
+    userid = 1
+    data_ids = [da['userid'] for da in data_list ]
+
+    if userid in data_ids:
+        print('存在')
+    else:
+        print('不存在')

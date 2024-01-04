@@ -114,15 +114,19 @@ def iot_topic():
             device.devicename = devicename
             db.session.commit()
 
-        # 用户绑定设备
+        # 用户绑定设备 主动扫码（20231212 v2）
         user = User.query.filter_by(openid=custom).first()
         if user:
+            # 新增用户设备信息表记录逻辑修改 xiaojuzi 20231214 v2 一个画小宇设备只允许一个人绑定 其他人绑定该设备只能分享添加
+            # device = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
+            # 待完善 20231218
             device = User_Device.query.filter_by(userid=custom, deviceid=deviceid).first()
             if not device:
-                # 新增用户设备信息表记录 xiaojuzi
+
                 user_device = User_Device(
                     deviceid=deviceid,
                     userid=custom,
+                    status=0,
                 )
                 db.session.add(user_device)
                 db.session.commit()
@@ -256,13 +260,16 @@ def iot_send():
                 device.devicename = devicename
                 db.session.commit()
 
-            # 新增用户设备信息表记录 xiaojuzi
+            # 新增用户设备信息表记录逻辑修改 xiaojuzi 20231214 v2 一个画小宇设备只允许一个人绑定 其他人绑定该设备只能分享添加
+            # device = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
+            #待完善 20231218
             device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
             if not device:
                 # 新增用户设备信息表记录 xiaojuzi
                 user_device = User_Device(
                     deviceid=deviceid,
                     userid=openid,
+                    status=0,
                 )
                 db.session.add(user_device)
                 db.session.commit()

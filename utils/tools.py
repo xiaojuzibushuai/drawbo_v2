@@ -1,11 +1,15 @@
 # -*- coding:utf-8 -*-
 
 import hashlib
+import ipaddress
+import json
 import secrets
 import time
 from datetime import datetime,timedelta
 
 import bcrypt
+from cryptography import fernet
+from cryptography.fernet import Fernet
 from flask_security import current_user
 from flask import request, jsonify
 from pypinyin import pinyin, Style
@@ -13,7 +17,7 @@ from pypinyin import pinyin, Style
 from models.admin_logs import AdminLogs
 from models.request_count import RequestCount
 from sys_utils import db
-from config import SIGN_KEY, ALLOWED_EXTENSIONS, HOST, MQ_HOST,  SMS_API_KEY
+from config import SIGN_KEY, ALLOWED_EXTENSIONS, HOST, MQ_HOST, SMS_API_KEY, video_resource_key
 from collections.abc import Iterable
 from functools import wraps
 import logging
@@ -35,7 +39,7 @@ def manager_app_logs(scope, message):
     """
     username = "guest" if not current_user.is_authenticated else current_user.username
     ip = request.headers.get('X-Real-IP', request.remote_addr)
-    logs = AdminLogs(scope=scope, username=username, ip=ip, message=message, uptime=datetime.datetime.now())
+    logs = AdminLogs(scope=scope, username=username, ip=ip, message=message, uptime=datetime.now())
     db.session.add(logs)
     db.session.commit()
     return True
@@ -240,7 +244,8 @@ def rate_limit(interface_name, max_count,minutes):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            ip_address = request.remote_addr
+
+            ip_address = getUserIp()
 
             # 查询数据库中的记录
             request_count = db.session.query(RequestCount).filter_by(ip_address=ip_address,api_name=interface_name).first()
@@ -270,6 +275,105 @@ def rate_limit(interface_name, max_count,minutes):
 
     return decorator
 
+#获取真实的ip地址 xiaojuzi v2 20231207
+def getUserIp():
+
+    ip_address = get_client_ip()
+
+    bool = is_private_ip(ip_address)
+
+    if not ip_address or ip_address == "unknown" or bool:
+        ip = None
+        ip_address1 = get_location_by_ip(ip)
+        if ip_address1:
+
+            return ip_address1
+
+    return ip_address
+
+#获取真实的ip地址 xiaojuzi v2 20231207
+def get_client_ip():
+    if request is None:
+        return "unknown"
+    ip = request.headers.get("x-forwarded-for")
+    if ip is None or len(ip) == 0 or ip.lower() == "unknown":
+        ip = request.headers.get("Proxy-Client-IP")
+    if ip is None or len(ip) == 0 or ip.lower() == "unknown":
+        ip = request.headers.get("X-Forwarded-For")
+    if ip is None or len(ip) == 0 or ip.lower() == "unknown":
+        ip = request.headers.get("WL-Proxy-Client-IP")
+    if ip is None or len(ip) == 0 or ip.lower() == "unknown":
+        ip = request.headers.get("X-Real-IP")
+    if ip is None or len(ip) == 0 or ip.lower() == "unknown":
+        ip = request.remote_addr
+    return "127.0.0.1" if ip == "0:0:0:0:0:0:0:1" else get_multistage_reverse_proxy_ip(ip)
+
+def get_multistage_reverse_proxy_ip(ip):
+    # 多级反向代理检测
+    if ip is not None and "," in ip:
+        ips = [sub_ip.strip() for sub_ip in ip.split(",")]
+        for sub_ip in ips:
+            if not is_unknown(sub_ip):
+                ip = sub_ip
+                break
+    return ip[:255] if ip is not None else None
+
+def is_unknown(check_string):
+    return check_string is None or check_string.strip().lower() == "unknown"
+
+
+#获取真实的ip地址 获取IP所在地位置 xiaojuzi v2 20231207
+def get_location_by_ip(ip):
+    try:
+        if not ip:
+            url = 'http://whois.pconline.com.cn/ipJson.jsp'
+            response = requests.get(url,timeout=5)
+
+            data = response.text
+
+            start_index = data.find('"ip":"') + len('"ip":"')
+            end_index = data.find('"', start_index)
+
+            if start_index != -1 and end_index != -1:
+                ip_address = data[start_index:end_index]
+
+                return ip_address
+            else:
+                return None
+
+        bool = is_private_ip(ip)
+        if bool:
+            return '不是公网有效地址,Unknown!'
+
+        param = {'ip' : ip,
+                 'json' : 'true'}
+
+        #http://whois.pconline.com.cn/ipJson.jsp 用此API则可获取所有详细信息
+        # url = f'http://ip-api.com/json/{ip}'  # 使用 ip-api.com 的 API
+        url = 'http://whois.pconline.com.cn/ipJson.jsp'
+        response = requests.get(url,params=param,timeout=5)
+        data = response.json()
+        return data
+
+        # if data['status'] == 'success':
+        #     return data
+        # else:
+        #     return 'Unknown'
+    except requests.Timeout:
+        # 在超时后执行自定义解析操作
+        return 'Unknown'
+    except Exception:
+        return 'Unknown'
+
+#判断ip是否为私有地址 私有地址则不解析 xiaojuzi v2 20231207
+def is_private_ip(ip_address):
+    try:
+        ip = ipaddress.ip_address(ip_address)
+        return ip.is_private
+    except Exception:
+        return False
+
+
 #xiaojuzi v2
 def _convert_to_pinyin(chinese):
     pinyin_list = pinyin(chinese, style=Style.NORMAL)
@@ -279,6 +383,7 @@ def _convert_to_pinyin(chinese):
 
 #20231129 xiaojuzi v2 生成安全的API_KEY
 def generate_api_key(length=32):
+
     characters = string.ascii_letters + string.digits
     api_key = ''.join(secrets.choice(characters) for _ in range(length))
 
@@ -298,6 +403,17 @@ def check_password(password, hashed_password):
     # 验证密码是否匹配
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
+#加密 20231228 xiaojuzi
+def video_resource_encrypt(data):
+    fernet = Fernet(video_resource_key)
+    return fernet.encrypt(data.encode())
+
+#解密 20231228 xiaojuzi
+def video_resource_decrypt(data):
+    fernet = Fernet(video_resource_key)
+    return fernet.decrypt(data)
+
+
 def make_device_qrcode(deviceid: str)->int:
     """
     生成设备二维码 格式 {"type":"share_device","device_id":"123456"} 对象转成base64，在用base64字符串生成二维码
@@ -309,7 +425,8 @@ def make_device_qrcode(deviceid: str)->int:
         b64_byt = base64.b64encode(str_info.encode('utf-8'))
         b64_str = b64_byt.decode('utf-8')
         img = qrcode.make(b64_str)
-        with open(os.path.join(os.path.abspath('.'), 'static', 'device', '%s.png' % deviceid), 'wb') as f:
+        #xiaojuzi  v2 20231213 更改逻辑
+        with open(os.path.join(os.path.dirname(os.path.abspath('.')), 'static', 'device', '%s.png' % deviceid), 'wb') as f:
             img.save(f)
     except Exception as e:
         logging.info(e)

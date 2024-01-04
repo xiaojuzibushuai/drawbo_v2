@@ -99,7 +99,7 @@ def cv_camera_png_to_svg(png_file_path, svg_file_path):
     cv.imwrite(temp_png_file_path, rotated_image)
 
     # 调用函数进行图片分辨率统一
-    resize_images(temp_png_file_path,(result.shape[0],result.shape[1]))
+    resize_images(temp_png_file_path,(720,1280))
 
     vtracer.convert_image_to_svg_py(temp_png_file_path, svg_file_path, colormode='binary')
 
@@ -129,33 +129,36 @@ def resize_images(file_path, target_resolution):
     # 保存调整后的图片
     canvas.save(file_path)
 
-def cv_png_to_svg(png_file_path, svg_file_path):
-    # 读取图像
-    im = Image.open(png_file_path)
 
-    #  转黑白
-    bw_image = im.convert('L')
 
-    # 将所有灰度值除了0之外的值设置为255，从而转换为黑色
-    result_image = bw_image.point(lambda x: 0 if x < 255 else 255)
+# 20240102 xiaojuzi v2 修改 旋转角度
+def cv_png_to_svg(rotate,png_file_path, svg_file_path):
 
-    # 指定逆时针旋转的角度
-    # im_rotate = im.rotate(90)
-    im_rotate = result_image.transpose(Image.ROTATE_90)
+    image = cv.imread(png_file_path, cv.IMREAD_GRAYSCALE)
 
-    last_slash_index = png_file_path.rfind('/')
-    png_file_floder = png_file_path[:last_slash_index + 1]
-    # print(png_file_floder)
+    binary = cv.adaptiveThreshold(image, 255,
+                                  cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 25, 15)
+    se = cv.getStructuringElement(cv.MORPH_RECT, (1, 1))
+    se = cv.morphologyEx(se, cv.MORPH_CLOSE, (2, 2))
+    mask = cv.dilate(binary, se)
 
-    dot_index = png_file_path.rfind('.')
-    png_file_name = png_file_path[last_slash_index + 1:dot_index]
-    # print(png_file_name)
+    mask1 = cv.bitwise_not(mask)
+    binary = cv.bitwise_and(image, mask)
+    result = cv.add(binary, mask1)
 
-    png_file_suffix = png_file_path[dot_index:]
-    # print(png_file_suffix)
+    temp_png_file_path = os.path.abspath(png_file_path.split('.')[0]) + "_temp.png"
 
-    temp_png_file_path = png_file_floder + png_file_name + "_temp" + png_file_suffix
-    im_rotate.save(temp_png_file_path)
+    # 旋转
+    if int(rotate) == 1:
+        rotated_image = cv.rotate(result, cv.ROTATE_90_CLOCKWISE)
+    elif int(rotate) == 2:
+        rotated_image = cv.rotate(result, cv.ROTATE_180)
+    elif int(rotate) == 3:
+        rotated_image = cv.rotate(result, cv.ROTATE_90_COUNTERCLOCKWISE)
+    else:
+        rotated_image = result
+
+    cv.imwrite(temp_png_file_path, rotated_image)
 
     vtracer.convert_image_to_svg_py(temp_png_file_path, svg_file_path, colormode='binary')
 

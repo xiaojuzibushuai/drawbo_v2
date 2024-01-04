@@ -45,7 +45,13 @@ PASSWORD_ERROR = 32
 RESET_PASSWORD_ERROR = 33
 UPDATE_USER_INFO_ERROR = 34
 CANCEL_USER_ACCOUNT_ERROR = 35
-
+SCENE_ERROR = 36
+SCENE_SUB_EXIST = 37
+SHARE_CODE_ERROR = 38
+PHONE_IS_NOT_MATCH = 39
+VIDEO_UPLOAD_FAILED = 40
+VIDEO_UPLOAD_NAME_REPEATED = 41
+VIDEO_FORMAT_ERROR = 42
 
 ERROR_CODE = {
     SUCCESS: 'success',
@@ -55,7 +61,7 @@ ERROR_CODE = {
     SIGN_ERROR: 'sign error',
     SIGN_INVALID: 'sign invalid',
     JSON_ERROR: 'json error',
-    PHONE_NOT_FIND: '手机号不能为空',
+    PHONE_NOT_FIND: '手机号未注册',
     CODE_NOT_FIND: '验证码不能为空',
     PHONE_ERROR: '手机号错误',
     CODE_ERROR: '验证码错误',
@@ -80,7 +86,7 @@ ERROR_CODE = {
     DEVICE_EXIST: '设备已存在',
     FACE_NOT_FIND: '人脸未找到',
     LATEST_VERSION: '已经是最新版本',
-    QUESTION_NULL:'课程问题以及答案为空',
+    QUESTION_NULL: '课程问题以及答案为空',
     SMS_SEND_FREQUENTLY: '短信发送过于频繁',
     SMS_SEND_ERROR: '短信发送失败',
     SMS_CODE_ERROR: '短信验证码错误',
@@ -91,4 +97,10 @@ ERROR_CODE = {
     RESET_PASSWORD_ERROR: '重置密码失败',
     UPDATE_USER_INFO_ERROR: '更新用户信息失败',
     CANCEL_USER_ACCOUNT_ERROR: '注销用户失败',
+    SCENE_ERROR: '场景操作错误',
+    SCENE_SUB_EXIST: '小场景已存在',
+    SHARE_CODE_ERROR: '分享码失效',
+    PHONE_IS_NOT_MATCH: '手机号与当前微信用户不匹配',
+    VIDEO_UPLOAD_FAILED: '视频上传失败',
+    VIDEO_FORMAT_ERROR: '视频格式错误',
 }
