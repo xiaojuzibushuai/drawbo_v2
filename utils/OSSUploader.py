@@ -31,8 +31,8 @@ def upload_file(object_key, file):
         else:
             # 使用普通上传
             result = bucket.put_object(object_key, file)
-            # logging.info(f'Uploaded {object_key} of size {file_size} bytes,result:{result.status}')
-            print(f'Uploaded {object_key} of size {file_size} bytes,result:{result.status}')
+            logging.info(f'Uploaded {object_key} of size {file_size} bytes,result:{result.status}')
+            # print(f'Uploaded {object_key} of size {file_size} bytes,result:{result.status}')
             return SUCCESS
 
     except Exception as e:

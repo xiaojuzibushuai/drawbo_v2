@@ -373,6 +373,27 @@ def is_private_ip(ip_address):
     except Exception:
         return False
 
+#分页方法 xiaojuzi 20231121 v2
+def paginate_data(data, page_size, page_number) -> list:
+
+    total_items = len(data)
+
+    #整除运算符 得到正确的总页数
+    total_pages = (total_items + page_size - 1) // page_size
+
+    # 校验每页大小
+    if page_size < 1:
+        raise ValueError("Invalid page size")
+
+    # 校验页码
+    if page_number < 1 or page_number > total_pages:
+        raise ValueError("Invalid page number")
+
+    start_index = (page_number - 1) * page_size
+    end_index = start_index + page_size
+    paginated_data = data[start_index:end_index]
+
+    return paginated_data
 
 #xiaojuzi v2
 def _convert_to_pinyin(chinese):

@@ -173,8 +173,12 @@ def test7():
     print(sorted_devices)
 
 if __name__ == '__main__':
+    # ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
+    # print(os.path.dirname(ffmpeg_path))
+    str = '0123'
+    print(str[0:])
 
-    test7()
+    # test7()
     # video_blob =convert_video_to_blob('1.mp4')
     # print(video_blob)
 

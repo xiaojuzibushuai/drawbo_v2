@@ -34,7 +34,8 @@ def initialize():
 #xiaojuzi 20231027
 def setup_mqtt():
 
-    topic = "/keyboard/commit/"
+    # 订阅主题
+    topic = "keyboard/commit/"
 
     # 初始化MQTT
     client = mqtt.Client()
@@ -49,7 +50,7 @@ def setup_mqtt():
         # 订阅所需的主题
         client.subscribe(topic,1)
 
-        logging.info( "MQTT消费者端pid为：" + str(pid) +"Connected to MQTT server with result code " + str(rc))
+        logging.info("MQTT消费者端pid为：" + str(pid) +"Connected to MQTT server with result code " + str(rc))
         # print("MQTT消费者端 Connected to MQTT server with result code " + str(rc))
 
     # MQTT回调函数，当接收到消息时调用 xiaojuzi 20231027
@@ -68,7 +69,6 @@ def setup_mqtt():
 
                 insert_data(msg)
 
-
         except Exception as e:
             # print('插入数据时出现异常:', str(e))
             logging.info('插入数据时出现异常:', str(e))
@@ -86,6 +86,7 @@ def setup_mqtt():
 def insert_mqmessage(msg):
     # 20231117 xiaojuzi v2 查询本地消息表该消息是否最近三十秒有数据 有就直接返回
     # query_param = msg.topic + '.' + msg.payload.decode()  有唯一索引就不需要这个
+
 
     s_message = db.session.query(mqttSubscribeMessage).filter_by(topic=msg.topic,payload=msg.payload.decode()).order_by(
         mqttSubscribeMessage.id.desc()).first()

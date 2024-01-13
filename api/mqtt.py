@@ -13,6 +13,7 @@ from sqlalchemy import func, Integer, cast
 from config import HOST, ADMIN_HOST
 from models.course import Course, DeviceCourse
 from models.device import Device
+from models.external_device import ExternalDevice
 from models.key_board_data import KeyBoardData
 from models.parent_game import ParentGame
 from models.user import User
@@ -21,7 +22,7 @@ from script.mosquitto_product import send_message, send_external_message
 from sys_utils import db
 from utils.image_convert.convert_image_to_dat import convert_image_to_dat, convert_camera_image_to_dat, \
     test_convert_image_to_dat
-from utils.tools import ret_data, decorator_sign, create_noncestr
+from utils.tools import ret_data, decorator_sign, create_noncestr, paginate_data
 from utils.error_code import *
 
 from pypinyin import pinyin, Style
@@ -487,27 +488,6 @@ def getKeyboardProcessData(results: list) -> list:
 
     return data_list
 
-#分页方法 xiaojuzi 20231121 v2
-def paginate_data(data, page_size, page_number) -> list:
-
-    total_items = len(data)
-
-    #整除运算符 得到正确的总页数
-    total_pages = (total_items + page_size - 1) // page_size
-
-    # 校验每页大小
-    if page_size < 1:
-        raise ValueError("Invalid page size")
-
-    # 校验页码
-    if page_number < 1 or page_number > total_pages:
-        raise ValueError("Invalid page number")
-
-    start_index = (page_number - 1) * page_size
-    end_index = start_index + page_size
-    paginated_data = data[start_index:end_index]
-
-    return paginated_data
 
 
 @mqtt_api.route('/getKeyboardDataImpl', methods=['GET','POST'])
@@ -604,7 +584,32 @@ def getKeyboardDataImpl():
     return jsonify(ret_data(SUCCESS,data=None))
 
 # @mqtt_api.route('/mqttPushAnswerToKeyBoard', methods=['POST'])
-# xiaojuzi 20231030 给键盘推送数据
+# xiaojuzi 20231030 给键盘推送数据 update by xiaojuzi 20240104 更新 先回退旧版本
+# def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str,deviceid: str,courseid=None):
+#
+#     logging.info(' gametype: %s , answer: %s ,parentid: %s ,deviceid %s ,courseid %s' % (gametype, answer,parentid,deviceid,courseid))
+#
+#     if not gametype or not answer or not parentid or not deviceid:
+#         return jsonify(ret_data(PARAMS_ERROR))
+#
+#     #20240104 xiaojuzi v2 更新主题方式
+#     ed = ExternalDevice.query.filter_by(deviceid=deviceid).first()
+#
+#     if not ed:
+#         return jsonify(ret_data(PARAMS_ERROR))
+#
+#     # topic = '/keyboard/answer/'
+#
+#     #20231121 xiaojuzi v2 数据面板修改游戏类型
+#     push_json = f"-{parentid}-{gametype}{answer}-{courseid}"
+#
+#     logging.info("设备主题：%s,游戏类型及其答案更新：%s " % (ed.topic,push_json))
+#
+#     errcode = send_external_message(push_json,ed.topic)
+#
+#     return jsonify(ret_data(errcode))
+
+#回退版本待删除 20240104 xiaojuzi v2
 def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str,courseid=None):
 
     logging.info(' gametype: %s , answer: %s ,parentid: %s ,courseid %s' % (gametype, answer,parentid,courseid))
@@ -874,8 +879,8 @@ def testMqttPushFacePictureDataImpl():
     rotate = request.form.get('rotate', None)
 
     #临时给三个
-    deviceid = '8c000c6d6004c991e52'
-    openid = 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc'
+    # deviceid = '8c000c6d6004c991e52'
+    # openid = 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc'
     # rotate = 2
 
     if not file or not openid:

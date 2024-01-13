@@ -17,6 +17,8 @@ class ExternalDevice(db.Model):
 
     status_update = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)  # 更新状态时间
 
+    topic = db.Column(db.String(32), default="iot/2/default_topic")  # 主题
+
 
     def __str__(self):
         return self.id

@@ -47,6 +47,7 @@ class CourseView(ModelView):
         'category': '课程类别',
         'category.title': '课程类别'
     }
+
     form_columns = ['title', 'detail', 'save_path', 'category', 'index_show', 'priority', 'play_time',
                     'course_class', 'volume', 'img_files', 'data_files', 'lrc_files', 'input_voice_files']
     column_searchable_list = ['title']
@@ -58,7 +59,9 @@ class CourseView(ModelView):
     }
     form_extra_fields = {
         'input_voice_files': FileInputField('音频文件'),
+        # 'input_video_files': FileInputField('视频文件'),
     }
+
     column_descriptions = {'save_path': '不支持修改文件夹名称'}
 
     column_editable_list = ['priority', 'play_time']
@@ -121,6 +124,7 @@ class CourseView(ModelView):
         del form.data_files
         del form.lrc_files
         del form.input_voice_files
+        # del form.input_video_files
         if not hasattr(form, '_validated_ruleset') or not form._validated_ruleset:
             self._validate_form_instance(ruleset=self._form_create_rules, form=form)
 
@@ -187,7 +191,8 @@ class CourseView(ModelView):
             'img_files': ImageUploadField('图片', base_path=file_path, relative_path='upload/%s/' % model.save_path, namegen=lambda o, f: secure_filename(model.save_path+os.path.splitext(f.filename)[1]),allow_overwrite=True),
             'data_files': FileUploadField('dat文件', base_path=file_path, relative_path='upload/%s/' % model.save_path, namegen=lambda o, f: secure_filename(model.save_path+os.path.splitext(f.filename)[1]),allow_overwrite=True),
             'lrc_files': FileUploadField('lrc文件', base_path=file_path, relative_path='upload/%s/' % model.save_path, namegen=lambda o, f: secure_filename(model.save_path+os.path.splitext(f.filename)[1]),allow_overwrite=True),
-            'input_voice_files': FileInputField('音频文件')
+            'input_voice_files': FileInputField('音频文件'),
+            # 'input_video_files': FileInputField('视频文件'),
         }
         self._refresh_forms_cache()
         form = self.edit_form(obj=model)
@@ -293,6 +298,7 @@ class CourseView(ModelView):
                         self.delete_file(filepath)
                     else:
                         ret.append((fname, pic_name))
+
             return ret
 
     def before_model_change(self, form, model):

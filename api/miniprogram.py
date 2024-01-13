@@ -2663,7 +2663,7 @@ def face_count_verify():
 
         face_info_count = FaceInfo.query.filter_by(device=device.id, status=1).count()
 
-        print(device.face_count, face_info_count)
+        # print(device.face_count, face_info_count)
 
         if device.face_count - face_info_count > 20:
             data = {'verify': False, 'content': '人数超限了，请确认'}
@@ -3092,6 +3092,7 @@ def getUnbindExternalDevice():
 @jwt_required()
 # @decorator_sign
 def createExternalDevice():
+
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
@@ -3106,7 +3107,10 @@ def createExternalDevice():
     devicename = request.form.get('devicename',None)
     d_type = int(request.form.get('d_type',None))
 
-    logging.info('d_type: %s,,devicename: %s, deviceid: %s, mac: %s' % (d_type,devicename, deviceid, mac))
+    deviceid = deviceid.replace(':', '')
+    mac = mac.replace(':', '')
+
+    logging.info('d_type: %s,devicename: %s, deviceid: %s, mac: %s' % (d_type,devicename, deviceid, mac))
 
     if not deviceid or not mac:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -3114,6 +3118,12 @@ def createExternalDevice():
     device = ExternalDevice.query.filter_by(deviceid=deviceid).first()
 
     device1 = UserExternalDevice.query.filter_by(userid = openid,deviceid=deviceid).first()
+
+    #20240104 xiaojuzi v2 外设新增主题
+    if d_type == 2:
+        topic = 'keyboard/answer/%s' % str(deviceid)  # 主题
+    else:
+        topic = 'iot/2/%s' % str(deviceid) # 主题
 
     if not device:
 
@@ -3132,7 +3142,8 @@ def createExternalDevice():
             mac=mac,
             devicename=devicename,
             d_type=d_type,
-            qrcode_suffix_data='device/%s.png' % deviceid
+            qrcode_suffix_data='device/%s.png' % deviceid,
+            topic=topic
         )
 
         db.session.add(de)
@@ -3140,6 +3151,7 @@ def createExternalDevice():
         #优化逻辑20231216
         device.devicename = devicename
         device.d_type = d_type
+        device.topic = topic
 
 
     if not device1:
@@ -3410,20 +3422,69 @@ def getExternalDeviceBydeviceid():
 #     return jsonify(ret_data(SUCCESS, data=data))
 
 
-#对键盘群发题目信息 xiaojuzi 20231030
+#对键盘群发题目信息 xiaojuzi 20231030 update by xiaojuzi 20240104 更新 先回退旧版本
+# @miniprogram_api.route('/tempPushAnswerToKeyBoard', methods=['GET','POST'])
+# @jwt_required()
+# def tempPushAnswerToKeyBoard():
+#
+#     current_user = get_jwt_identity()
+#     if not current_user:
+#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+#
+#     gametype = request.form.get('gametype', None)
+#
+#     answer = request.form.get('answer', None)
+#
+#     parentid = request.form.get('parentid', None)
+#
+#     #20231229 xiaojuzi
+#     courseid = request.form.get('courseid', None)
+#
+#     if not gametype or not answer or not parentid:
+#         return jsonify(ret_data(PARAMS_ERROR))
+#
+#     #20231229 xiaojuzi
+#     #20240104 xiaojuzi v2 逻辑修改 将对在上课的画小宇设备绑定的键盘进行对点发送数据
+#     openid = current_user['openid']
+#     #获取用户绑定且选择在线的画小宇设备
+#     device_list = getDeviceByOpenid(openid)
+#
+#     if not device_list:
+#         return jsonify(ret_data(UNBIND_DEVICE))
+#
+#     for device in device_list:
+#         ed_list = getExternalDevice(openid,device.deviceid)
+#
+#         if not ed_list:
+#             continue
+#
+#         for ed in ed_list:
+#             if ed['d_type'] == 2:
+#                 if courseid:
+#                     mqttPushAnswerToKeyBoard(gametype, answer, parentid, ed['deviceid'],courseid)
+#                 else:
+#                     mqttPushAnswerToKeyBoard(gametype, answer, parentid,ed['deviceid'])
+#             else:
+#                 continue
+#
+#     return jsonify(ret_data(SUCCESS))
+
 @miniprogram_api.route('/tempPushAnswerToKeyBoard', methods=['GET','POST'])
 @jwt_required()
+#回退版本待删除 20240104 xiaojuzi v2
 def tempPushAnswerToKeyBoard():
+
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
     gametype = request.form.get('gametype', None)
 
     answer = request.form.get('answer', None)
 
     parentid = request.form.get('parentid', None)
 
-    #20231229 xiaojuzi
+    # 20231229 xiaojuzi
     courseid = request.form.get('courseid', None)
 
     if not gametype or not answer or not parentid:

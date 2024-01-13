@@ -78,7 +78,7 @@ def iot_topic():
         # init_course(device.id)
         # 生成二维码 20231202 xiaojuzi 修改 数据库人工插入数据造成系统条件判断缺失使用
         # make_device_qrcode(deviceid)
-
+        #主题
         payload['topic'] = device.topic
         payload['clientid'] = device.clientid
     else:

@@ -10,6 +10,8 @@ class CourseAudio(db.Model):
 
     audiojson = db.Column(db.Text, default="")
 
+    episode = db.Column(db.Integer,default=0)
+
     #课程id
     courseid = db.Column(db.Integer, db.ForeignKey('course.id'),default=-1)
 

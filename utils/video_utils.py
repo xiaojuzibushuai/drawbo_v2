@@ -2,6 +2,7 @@ import json
 import logging
 import multiprocessing
 import os
+import re
 import shutil
 import subprocess
 
@@ -65,12 +66,13 @@ def get_video_duration(ffprobe_path,input_file):
         result = subprocess.run(command, capture_output=True, text=True)
         output = result.stdout
         data = json.loads(output)
-        print(data)
+        # print(data)
         duration = float(data['format']['duration'])
         # print(duration)
         return duration
     except subprocess.CalledProcessError as e:
-        print(e)
+        logging.info('视频获取时长异常：'+str(e))
+        # print(e)
         return 0
 
 #将视频文件分片并加密 xiaojuzi 20231230
@@ -81,14 +83,18 @@ def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
     video_path = video_path.replace('\\','/')
     output_path = output_path.replace('\\','/')
 
-    keyinfo = os.path.join(os.path.dirname(output_path), 'keyinfo.txt').replace("\\", "/")
-    with open(keyinfo, 'w') as f:
-        f.write(os.path.join(os.path.dirname(output_path), 'encrypt.key').replace("\\", "/") + '\n')
-        f.write(os.path.join(os.path.dirname(output_path), 'encrypt.key').replace("\\", "/") + '\n')
-        f.write('8c8f033870dc07570b8b74c6267f6564' + '\n')
+    #初始化加密key 20240108 xiaojuzi v2
+    keyinfo = init_hls_key(output_path)
+    if not keyinfo:
+        return False,None
+
+    # print(keyinfo)
 
     if not os.path.exists(output_path):
+        #先删以前的在建立新的
+        # shutil.rmtree(output_path)
         os.makedirs(output_path)
+
 
     # 获取服务器CPU数目
     cpu_count = multiprocessing.cpu_count()
@@ -116,22 +122,24 @@ def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
     try:
         subprocess.run(command, check=True)
     except subprocess.CalledProcessError as e:
-        print(e)
+        logging.info('生成M3U8文件异常：'+str(e))
+        # print(e)
 
     # 检查视频时长
     check_time = check_video_time(ffprobe_path,video_path, os.path.join(m3u8folder_path, m3u8_name))
     if not check_time:
-        # logging.info("Failed: Video duration check failed.")
-        print("Failed: Video duration check failed.")
+        logging.info("Failed: Video duration check failed.")
+        # print("Failed: Video duration check failed.")
         return False,None
-    print("Success: Video duration check passed.")
+
+    # print("Success: Video duration check passed.")
 
     # 检查M3U8列表
     ts_list = get_ts_list(os.path.join(m3u8folder_path, m3u8_name))
 
     if ts_list is None:
-        # logging.info("Failed: M3U8 playlist check failed.")
-        print("Failed: M3U8 playlist check failed.")
+        logging.info("Failed: M3U8 playlist check failed.")
+        # print("Failed: M3U8 playlist check failed.")
         return False,None
     # print(ts_list)
 
@@ -160,13 +168,14 @@ def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
             subprocess.run(command)
 
         except subprocess.CalledProcessError as e:
-            print(e)
+            logging.info('视频分片加密异常：'+str(e))
+            # print(e)
 
     # 检查M3U8列表
     ts_list1 = get_ts_list(os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/"))
     if ts_list1 is None:
-        # logging.info("Failed: M3U8 new playlist check failed.")
-        print("Failed: M3U8 new playlist check failed.")
+        logging.info("Failed: M3U8 new playlist check failed.")
+        # print("Failed: M3U8 new playlist check failed.")
         return False,None
 
     # print(ts_list)
@@ -178,25 +187,78 @@ def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
         ts_file_path = os.path.join(m3u8folder_path, ts_file).replace("\\", "/")
         os.remove(ts_file_path)
 
-    # print('视频上传并切片加密成功！')
+    #打开加密索引文件进行信息混淆 20240108
+    # 读取原始M3U8文件内容
+    with open(os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/"), 'r') as f:
+        original_content = f.read()
+    # 替换敏感信息并保存到新的M3U8文件
+    #加密：METHOD=AES-128,URI="E:/drawbo/static/video/encrypt.key",IV=0x8c8f033870dc07570b8b74c6267f6564
+    # modified_content = re.sub(r'METHOD=[^, \n]+', 'METHOD=ENCRYPTED', original_content)
+    modified_content = re.sub(r'URI="[^"]+"', 'URI="SECRET"', original_content)
+    # modified_content = re.sub(r'IV=[^, \n]+', 'IV=0x00000000000000000000000000000000', modified_content)
+
+    with open(os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/"), 'w') as f:
+        f.write(modified_content)
+
+    print('视频上传并切片加密成功！')
+    logging.info("Success: Video upload and slice encryption succeeded.")
 
     return True,ts_list1
 
+#初始化视频hls切片密钥 xiaojuzi 20240105
+def init_hls_key(output_path):
+
+    temp = output_path.split('/')[-1]
+    # print(temp)
+
+    key_path = os.path.dirname(os.path.dirname(output_path)) + f'/{temp}'
+    # print(key_path)
+
+    keyinfo = os.path.join(key_path, 'keyinfo.txt').replace("\\", "/")
+    # print(keyinfo)
+    # if os.path.isfile(keyinfo):
+    #     return keyinfo
+    # else:
+    if not os.path.exists(key_path):
+        os.makedirs(key_path)
+
+    #更换逻辑 上传一次替换一次 加密算法 20240108
+    key_file_path = os.path.join(key_path, 'encrypt.key').replace("\\", "/")
+    try:
+        subprocess.run(['openssl', 'rand', '16', '>', key_file_path], shell=True)
+
+        iv_output = subprocess.check_output(['openssl', 'rand', '-hex', '16'])
+        # print(iv_output)
+        iv = iv_output.decode().strip()
+        # print(iv)
+
+        with open(keyinfo, 'w') as f:
+            f.write(os.path.join(key_path, 'encrypt.key').replace("\\", "/") + '\n')
+            f.write(os.path.join(key_path, 'encrypt.key').replace("\\", "/") + '\n')
+            f.write(iv + '\n')
+
+        return keyinfo
+    except Exception as e:
+        logging.info('初始化生成密钥异常：'+str(e))
+        return None
+
+
 
 #解密m3u8 并合并成原视频 xiaojuzi v2 20240102
-def decrypt_m3u8(m3u8_path):
+def decrypt_m3u8(m3u8_path,ffmpeg_path,keyinfo):
 
     try:
 
         # 检查M3U8列表
         ts_list = get_ts_list(os.path.join(m3u8_path, 'encrypted_slice.m3u8').replace("\\", "/"))
         if ts_list is None:
-            print("Failed: M3U8 playlist check failed.")
+            logging.info("Failed: M3U8 playlist check failed.")
+            # print("Failed: M3U8 playlist check failed.")
             return False
 
         # print(ts_list)
 
-        with open('./keyinfo.txt', 'r') as f:
+        with open(keyinfo, 'r') as f:
             keyinfo = f.read().splitlines()
 
         iv = keyinfo[2]
@@ -234,7 +296,6 @@ def decrypt_m3u8(m3u8_path):
                 '-K', encryption_key1
             ]
 
-
             subprocess.run(command, check=True)
 
         # 合并解密后的切片为完整视频
@@ -271,9 +332,9 @@ if __name__ == '__main__':
     video_path = './1.mp4'
     output_path = './temp_video_output'
     target = './temp_video_output/slice.m3u8'
-    generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path)
-
-    decrypt_m3u8(output_path)
+    # generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path)
+    keyinfo = 'E:\\temp_video_output\\keyinfo.txt'
+    decrypt_m3u8(output_path,ffmpeg_path,keyinfo)
 
     # print(generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path))
     # result = get_video_duration(ffprobe_path,video_path)
