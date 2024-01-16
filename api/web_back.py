@@ -1168,12 +1168,12 @@ def updateAudioJsonByCourseId():
 
 #删除课程绑定的视频 20240116 xiaojuzi v2
 @web_back_api.route('/deleteVideoByCourseId', methods=['POST'])
-@jwt_required()
+# @jwt_required()
 def deleteVideoByCourseId():
 
-    current_user = get_jwt_identity()
-    if not current_user:
-        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    # current_user = get_jwt_identity()
+    # if not current_user:
+    #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     courseId = request.form.get('courseId', None)
     episode = request.form.get('episode', None)
@@ -1196,15 +1196,19 @@ def deleteVideoByCourseId():
             # print(folder)
             delete_folder(folder)
             # print(result)
-
             data_list.remove(data)
             flag = False
+            print(len(data_list))
+            if len(data_list) == 0:
+                course.video_files = None
+            else:
+                course.video_files = json.dumps(data_list)
+
             break
 
     if flag:
         return jsonify(ret_data(PARAMS_ERROR,data="该课程没有此视频集数！"))
 
-    course.video_files = json.dumps(data_list)
 
     #删除本地文件数据
     data_list1 = json.loads(course.process_video_path)
@@ -1214,11 +1218,15 @@ def deleteVideoByCourseId():
             folder = '/'.join(data['process_video_path'].split('/')[:-1])
             # print(folder)
             shutil.rmtree(folder)
-
             data_list1.remove(data)
+            print(len(data_list1))
+            if len(data_list1) == 0:
+                course.process_video_path = None
+            else:
+                course.process_video_path = json.dumps(data_list1)
+
             break
 
-    course.process_video_path = json.dumps(data_list1)
 
     db.session.commit()
 
