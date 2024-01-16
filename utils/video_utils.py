@@ -32,6 +32,8 @@ def check_video_time(ffprobe_path,source, target):
         # print("视频时长不一致")
         return False
 
+
+
 #获取ts列表 xiaojuzi 20231230
 def get_ts_list(output_path):
 
@@ -58,6 +60,7 @@ def get_video_duration(ffprobe_path,input_file):
     command = [
         ffprobe_path,
         '-v', 'error',
+        # '-allowed_extensions','ALL'
         '-show_entries', 'format=duration',
         '-of', 'json',
         input_file
@@ -75,7 +78,97 @@ def get_video_duration(ffprobe_path,input_file):
         # print(e)
         return 0
 
-#将视频文件分片并加密 xiaojuzi 20231230
+# 一次性加密切片 不会卡顿 20240116 xiaojuzi v2  缺点暂时无法校验时长是否一致
+def test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
+
+    ffmpeg_path = ffmpeg_path.replace('\\', '/')
+    ffprobe_path = ffprobe_path.replace('\\', '/')
+    video_path = video_path.replace('\\', '/')
+    output_path = output_path.replace('\\', '/')
+
+    # 初始化加密key 20240108 xiaojuzi v2
+    keyinfo = init_hls_key(output_path)
+    if not keyinfo:
+        return False, None
+
+    # print(keyinfo)
+
+    if not os.path.exists(output_path):
+        # 先删以前的在建立新的
+        # shutil.rmtree(output_path)
+        os.makedirs(output_path)
+
+    # 获取服务器CPU数目
+    cpu_count = multiprocessing.cpu_count()
+    # print(cpu_count)
+
+    m3u8folder_path = output_path
+    encrypted_m3u8_name = 'encrypted_slice.m3u8'
+
+    # 使用FFmpeg生成M3U8文件
+    command = [
+
+        ffmpeg_path,
+        '-i', video_path,
+        # '-c:v', 'libx264',  # 对视频编码
+        # '-c:v', 'copy',  # 对视频编码
+        # '-c:a', 'copy',  # 对音频复制
+        # '-i', video_path,
+        # '-c:v', 'libx264',  # 对视频编码
+        # '-s', '1280x720',  # 输出视频分辨率
+        # '-pix_fmt', 'yuv420p',  # 输出视频像素格式
+        # '-b:a', '63k',  # 音频比特率
+        # '-b:v', '753k',  # 视频比特率
+        # '-r', '18',  # 输出视频帧率
+        '-c', 'copy',
+        # '-hls_key_info_file', 'keyinfo.txt',  # 秘钥文件
+        '-hls_key_info_file', keyinfo,  # 秘钥文件
+        '-f', 'hls',  # 生成hls
+        # '-hls_time', str(ts_duration),
+        '-hls_time', '10',
+        '-hls_list_size', '0',  # 设置hls播放列表
+        '-threads', str(cpu_count),  # 多处理器
+        '-hls_playlist_type', 'vod',  # 点播
+        '-force_key_frames', 'expr:gte(t,n_forced*1)',  # 添加强制关键帧参数
+        '-hls_segment_filename', os.path.join(m3u8folder_path, f'encrypt_slice_%05d.ts').replace("\\", "/"),
+        '-hls_flags', 'append_list',  # 追加到现有的播放列表
+        os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/")
+    ]
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        logging.info('生成M3U8文件异常：' + str(e))
+        # print(e)
+
+
+    # 检查M3U8列表
+    ts_list1 = get_ts_list(os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/"))
+    if ts_list1 is None:
+        logging.info("Failed: M3U8 new playlist check failed.")
+        # print("Failed: M3U8 new playlist check failed.")
+        return False,None
+
+
+    # 打开加密索引文件进行信息混淆 20240108
+    # 读取原始M3U8文件内容
+    with open(os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/"), 'r') as f:
+        original_content = f.read()
+    # 替换敏感信息并保存到新的M3U8文件
+    # 加密：METHOD=AES-128,URI="E:/drawbo/static/video/encrypt.key",IV=0x8c8f033870dc07570b8b74c6267f6564
+    # modified_content = re.sub(r'METHOD=[^, \n]+', 'METHOD=ENCRYPTED', original_content)
+    modified_content = re.sub(r'URI="[^"]+"', 'URI="SECRET"', original_content)
+    # modified_content = re.sub(r'IV=[^, \n]+', 'IV=0x00000000000000000000000000000000', modified_content)
+
+    with open(os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/"), 'w') as f:
+        f.write(modified_content)
+
+    # print('视频上传并切片加密成功！')
+    logging.info("Success: Video upload and slice encryption succeeded.")
+
+    return True,ts_list1
+
+
+#将视频文件分片并加密 缺点在二个合并处稍微有一点点卡顿 拼接问题 待完善 xiaojuzi 20231230
 def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
 
     ffmpeg_path = ffmpeg_path.replace('\\','/')
@@ -95,26 +188,33 @@ def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
         # shutil.rmtree(output_path)
         os.makedirs(output_path)
 
-
     # 获取服务器CPU数目
     cpu_count = multiprocessing.cpu_count()
     # print(cpu_count)
 
     m3u8folder_path = output_path
     m3u8_name = 'slice.m3u8'
-    encrypted_m3u8_name ='encrypted_slice.m3u8'
+    encrypted_m3u8_name = 'encrypted_slice.m3u8'
 
     # 使用FFmpeg生成M3U8文件
     command = [
         ffmpeg_path,
         '-i', video_path,
         '-c:v', 'libx264',#对视频编码
-        '-c:a', 'copy',#对音频复制
+        '-s', '1280x720',  # 输出视频分辨率
+        '-pix_fmt', 'yuv420p',  # 输出视频像素格式
+        '-b:a', '63k',  # 音频比特率
+        '-b:v', '753k',  # 视频比特率
+        '-r', '18',  # 输出视频帧率
+        # '-c:v', 'copy',  # 对视频编码
+        # '-c:a', 'copy',#对音频复制
+        # '-c', 'copy',
         '-f', 'hls',#生成hls
         '-hls_time', '10',
         '-hls_list_size', '0',#设置hls播放列表
         '-threads', str(cpu_count),#多处理器
         '-hls_playlist_type', 'vod',#点播
+        '-force_key_frames', 'expr:gte(t,n_forced*1)',  # 添加强制关键帧参数
         # '-hls_key_info_file', 'keyinfo.txt',#秘钥文件
         '-hls_segment_filename', os.path.join(m3u8folder_path, 'slice_%05d.ts').replace("\\", "/"),#生成ts文件
         os.path.join(m3u8folder_path, m3u8_name).replace("\\", "/")
@@ -147,19 +247,30 @@ def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
     for ts_file in ts_list:
         ts_file_path = os.path.join(m3u8folder_path, ts_file).replace("\\", "/")
         # temp = ts_file.split('.')[0]
-
+        ts_duration = get_video_duration(ffprobe_path,ts_file_path)
         command = [
             ffmpeg_path,
             '-i', ts_file_path,
-            '-c:v', 'libx264',  # 对视频编码
-            '-c:a', 'copy',  # 对音频复制
+            # '-c:v', 'libx264',  # 对视频编码
+            # '-c:v', 'copy',  # 对视频编码
+            # '-c:a', 'copy',  # 对音频复制
+            # '-i', video_path,
+            '-c:v', 'libx264',#对视频编码
+            '-s', '1280x720',  # 输出视频分辨率
+            '-pix_fmt', 'yuv420p',  # 输出视频像素格式
+            '-b:a', '63k',  # 音频比特率
+            '-b:v', '753k',  # 视频比特率
+            '-r', '18',  # 输出视频帧率
+            # '-c', 'copy',
             # '-hls_key_info_file', 'keyinfo.txt',  # 秘钥文件
             '-hls_key_info_file', keyinfo,  # 秘钥文件
             '-f', 'hls',  # 生成hls
-            '-hls_time', '24',
+            '-hls_time', str(ts_duration),
+            # '-hls_time', '10',
             '-hls_list_size', '0',  # 设置hls播放列表
             '-threads', str(cpu_count),  # 多处理器
             '-hls_playlist_type', 'vod',  # 点播
+            '-force_key_frames', 'expr:gte(t,n_forced*1)',  # 添加强制关键帧参数
             '-hls_segment_filename', os.path.join(m3u8folder_path, f'encrypt_slice_%05d.ts').replace("\\", "/"),
             '-hls_flags', 'append_list',  # 追加到现有的播放列表
             os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/")
@@ -200,7 +311,7 @@ def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
     with open(os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/"), 'w') as f:
         f.write(modified_content)
 
-    print('视频上传并切片加密成功！')
+    # print('视频上传并切片加密成功！')
     logging.info("Success: Video upload and slice encryption succeeded.")
 
     return True,ts_list1
@@ -233,8 +344,8 @@ def init_hls_key(output_path):
         # print(iv)
 
         with open(keyinfo, 'w') as f:
-            f.write(os.path.join(key_path, 'encrypt.key').replace("\\", "/") + '\n')
-            f.write(os.path.join(key_path, 'encrypt.key').replace("\\", "/") + '\n')
+            f.write(key_file_path + '\n')
+            f.write(key_file_path + '\n')
             f.write(iv + '\n')
 
         return keyinfo
@@ -329,13 +440,18 @@ if __name__ == '__main__':
     ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
     ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
     ffplay_path = 'D:\\桌面\\ffmpeg\\ffplay.exe'
-    video_path = './1.mp4'
+    video_path = './2.mp4'
     output_path = './temp_video_output'
     target = './temp_video_output/slice.m3u8'
+    target1 = './temp_video_output/encrypted_slice.m3u8'
     # generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path)
     keyinfo = 'E:\\temp_video_output\\keyinfo.txt'
-    decrypt_m3u8(output_path,ffmpeg_path,keyinfo)
-
+    # decrypt_m3u8(output_path,ffmpeg_path,keyinfo)
+    # test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path)
+    # check_time = check_video_time(ffprobe_path, video_path,target1)
+    # print(check_time)
+    result =get_encrypted_video_duration(ffprobe_path,target1)
+    print(result)
     # print(generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path))
     # result = get_video_duration(ffprobe_path,video_path)
     # print(result)

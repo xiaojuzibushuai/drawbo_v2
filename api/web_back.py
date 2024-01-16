@@ -33,15 +33,14 @@ from models.user import User
 from models.user_device import User_Device
 from script.mosquitto_product import send_message
 from sys_utils import app, db
-from utils.OSSUploader import upload_file, bucket
+from utils.OSSUploader import upload_file, bucket, delete_folder
 from utils.error_code import PARAMS_ERROR, PHONE_NUMBER_ERROR, PHONE_NOT_FIND, SUCCESS, PASSWORD_ERROR, SMS_SEND_ERROR, \
     USER_NOT_FIND, UNAUTHORIZED_ACCESS, VIDEO_UPLOAD_FAILED, SMS_CODE_ERROR, SMS_CODE_EXPIRE, \
     VIDEO_UPLOAD_NAME_REPEATED, DEVICE_NOT_FIND, VIDEO_FORMAT_ERROR, CHUNK_UPLOAD_EXIST, COURSE_UNBIND_VIDEO, \
     VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT
 from utils.tools import ret_data, check_password, getUserIp, model_to_dict, dict_fill_url, get_location_by_ip, \
     video_resource_decrypt, video_resource_encrypt, paginate_data
-from utils.video_utils import generate_m3u8
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+from utils.video_utils import generate_m3u8, test_generate_m3u8
 
 web_back_api = Blueprint('web_back', __name__, url_prefix='/api/v2/web_back')
 
@@ -203,7 +202,6 @@ def getUserInfo():
     return jsonify(ret_data(SUCCESS, data=data))
 
 
-
 @web_back_api.route('/getCategory', methods=['POST'])
 @jwt_required()
 def getCategory():
@@ -318,7 +316,6 @@ def getCourse():
 
     if course_id == 'null':
         course_id = None
-
 
     # 累加设备所查询到的课程使用次数
     query_params = [Course.id, Course.title, Course.detail, Course.category_id, Course.img_files,
@@ -496,6 +493,27 @@ def mergeChunks():
 
     video_path = os.path.join(save_video_folder, file_name).replace('\\', '/')
 
+    temp = file_name.split('.')[0]
+    temp1 = f"http://{oss_bucket_name}.oss-cn-wuhan-lr.aliyuncs.com/{temp}"
+
+    if course.video_files:
+        data_list = json.loads(course.video_files)
+        for video in data_list:
+            if video['episode'] == episode:
+                shutil.rmtree(save_video_folder)
+                return jsonify(ret_data(VIDEO_UPLOAD_FAILED, data='视频集数已经存在，请先删除！'))
+
+            if video['video_base_url'] == temp1:
+
+                data = {"video_base_url": video['video_base_url'], "video_ts_list": video['video_ts_list'], "episode": episode,
+                        "process_video_state": 2}
+
+                data_list.append(data)
+                course.video_files = json.dumps(data_list)
+                db.session.commit()
+
+                return jsonify(ret_data(SUCCESS, data='视频合并成功！'))
+
     try:
         merged_result = merge_blobs_to_video(save_video_folder,video_path,chunkTotal)
 
@@ -610,7 +628,6 @@ def getCourseByCategoryId():
     return jsonify(ret_data(SUCCESS, data=course_list))
 
 
-
 #20240111 xiaojuzi v2 后台管理系统 课程管理 课程内容多条件筛选 增加分页查询
 @web_back_api.route('/getCourseByMultipleConditions', methods=['POST'])
 @jwt_required()
@@ -672,6 +689,7 @@ def getCourseByMultipleConditions():
                 'total_count': len(course_list),
                 'page_size': page_size,
                 'page_number': page_number,
+                'total': len(select_data_list),
                 'data': select_data_list
             })
 
@@ -801,7 +819,6 @@ def getFilePathByMd5(fileMd5: str,extension: str):
 
 
 #处理mp4视频将其切片且加密并上传到OSS xiaojuzi v2 20240105
-
 def process_mp4_video(video_path,file_name,course_id,episode):
 
     with app.app_context():
@@ -814,7 +831,8 @@ def process_mp4_video(video_path,file_name,course_id,episode):
         ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
         ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
 
-        result, ts_list = generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
+        # result, ts_list = generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
+        result, ts_list = test_generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
 
         # print(result)
         # print(ts_list)
@@ -988,6 +1006,7 @@ def videoAutoPushDatToDevice():
 
     return jsonify(ret_data(errcode))
 
+
 #保存在线视频课程脚本接口  update 20240112  by xiaojuzi v2
 @web_back_api.route('/saveCourseAudioJson', methods=['POST'])
 @jwt_required()
@@ -1147,4 +1166,61 @@ def updateAudioJsonByCourseId():
 
     return jsonify(ret_data(SUCCESS, data='修改成功'))
 
+#删除课程绑定的视频 20240116 xiaojuzi v2
+@web_back_api.route('/deleteVideoByCourseId', methods=['POST'])
+@jwt_required()
+def deleteVideoByCourseId():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    courseId = request.form.get('courseId', None)
+    episode = request.form.get('episode', None)
+
+    if not courseId or not episode:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    course = Course.query.filter_by(id=courseId).first()
+
+    if not course:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    data_list = json.loads(course.video_files)
+
+    flag = True
+
+    for data in data_list:
+        if data['episode'] == episode:
+            folder = data['video_base_url'].split('/')[-1]
+            # print(folder)
+            delete_folder(folder)
+            # print(result)
+
+            data_list.remove(data)
+            flag = False
+            break
+
+    if flag:
+        return jsonify(ret_data(PARAMS_ERROR,data="该课程没有此视频集数！"))
+
+    course.video_files = json.dumps(data_list)
+
+    #删除本地文件数据
+    data_list1 = json.loads(course.process_video_path)
+
+    for data in data_list1:
+        if data['episode'] == episode:
+            folder = '/'.join(data['process_video_path'].split('/')[:-1])
+            # print(folder)
+            shutil.rmtree(folder)
+
+            data_list1.remove(data)
+            break
+
+    course.process_video_path = json.dumps(data_list1)
+
+    db.session.commit()
+
+    return jsonify(ret_data(SUCCESS, data='删除视频成功'))
 

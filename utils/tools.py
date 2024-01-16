@@ -345,8 +345,8 @@ def get_location_by_ip(ip):
         if bool:
             return '不是公网有效地址,Unknown!'
 
-        param = {'ip' : ip,
-                 'json' : 'true'}
+        param = {'ip': ip,
+                 'json': 'true'}
 
         #http://whois.pconline.com.cn/ipJson.jsp 用此API则可获取所有详细信息
         # url = f'http://ip-api.com/json/{ip}'  # 使用 ip-api.com 的 API

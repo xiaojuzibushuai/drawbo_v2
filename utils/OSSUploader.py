@@ -41,6 +41,22 @@ def upload_file(object_key, file):
         return VIDEO_UPLOAD_FAILED
 
 
+# 递归删除OSS文件夹 xiaojuzi 20240116 v2
+def delete_folder(folder):
+    for obj in oss2.ObjectIterator(bucket, prefix=folder):
+        if obj.is_prefix():  # 如果是文件夹，则递归删除
+            delete_folder(obj.key)
+        else:  # 如果是文件，则删除
+            bucket.delete_object(obj.key)
+
+# 列举OSS全部文件 xiaojuzi 20240116 v2
+def list_oss_file() -> list:
+    data = []
+    for obj in oss2.ObjectIterator(bucket):
+        data.append(obj.key)
+        # print(obj.key)
+    return data
+
 #分片上传 xiaojuzi v2 20231228
 def multipart_upload(object_key, file, part_size=10 * 1024 * 1024):
     # 将文件流的位置移动到文件末尾
