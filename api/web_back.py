@@ -1168,12 +1168,12 @@ def updateAudioJsonByCourseId():
 
 #删除课程绑定的视频 20240116 xiaojuzi v2
 @web_back_api.route('/deleteVideoByCourseId', methods=['POST'])
-# @jwt_required()
+@jwt_required()
 def deleteVideoByCourseId():
 
-    # current_user = get_jwt_identity()
-    # if not current_user:
-    #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     courseId = request.form.get('courseId', None)
     episode = request.form.get('episode', None)
@@ -1226,7 +1226,6 @@ def deleteVideoByCourseId():
                 course.process_video_path = json.dumps(data_list1)
 
             break
-
 
     db.session.commit()
 
