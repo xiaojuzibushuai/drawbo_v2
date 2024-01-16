@@ -336,7 +336,8 @@ def init_hls_key(output_path):
     #更换逻辑 上传一次替换一次 加密算法 20240108
     key_file_path = os.path.join(key_path, 'encrypt.key').replace("\\", "/")
     try:
-        subprocess.run(['openssl', 'rand', '16', '>', key_file_path], shell=True)
+        command = f"openssl rand 16 > {key_file_path}"
+        subprocess.run(command, shell=True)
 
         iv_output = subprocess.check_output(['openssl', 'rand', '-hex', '16'])
         # print(iv_output)
