@@ -516,6 +516,14 @@ def mergeChunks():
 
                 data_list.append(data)
                 course.video_files = json.dumps(data_list)
+                #新增逻辑 获取key必须要的路径 update by xiaojuzi v2 20240117
+                data_list1 = json.loads(course.process_video_path)
+                for video1 in data_list1:
+                    if video1['episode'] == video['episode']:
+                        data1 = {"process_video_path": video1['process_video_path'], "episode": episode, "process_video_state": 1}
+                        data_list1.append(data1)
+                        course.process_video_path = json.dumps(data_list1)
+
                 db.session.commit()
 
                 return jsonify(ret_data(SUCCESS, data='视频合并成功！'))
@@ -834,8 +842,8 @@ def process_mp4_video(video_path,file_name,course_id,episode):
         save_video_folder = os.path.dirname(video_path)
 
         # 将视频切片在上传 20240103
-        # ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
-        # ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
+        ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
+        ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
 
         # result, ts_list = generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
         result, ts_list = test_generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
