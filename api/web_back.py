@@ -381,12 +381,17 @@ def checkChunk():
         # print(chunkFilePath)
         save_video_folder = static_folder + f'/video/{chunkFilePathFolder}'
 
-        result = check_chunk_exist(fileMd5,save_video_folder)
+        #临时逻辑 防止碎片干扰合并不成功 20240117 xiaojuzi v2
+        if os.path.exists(save_video_folder):
+            shutil.rmtree(save_video_folder)
 
-        if result:
-            return jsonify(ret_data(CHUNK_UPLOAD_EXIST,data='分块文件已经存在'))
-        else:
-            return jsonify(ret_data(SUCCESS,data='分块文件不存在'))
+        # result = check_chunk_exist(fileMd5,save_video_folder)
+
+        return jsonify(ret_data(SUCCESS, data='上传分片文件检查成功'))
+        # if result:
+        #     return jsonify(ret_data(CHUNK_UPLOAD_EXIST,data='分块文件已经存在'))
+        # else:
+        #     return jsonify(ret_data(SUCCESS,data='分块文件不存在'))
 
     except Exception as e:
         # print(e)
@@ -584,11 +589,11 @@ def mergeChunks():
 
 # 上传视频获取所有课程分类  xiaojuzi v2 20240109
 @web_back_api.route('/getCourseCategory', methods=['GET'])
-# @jwt_required()
+@jwt_required()
 def getCourseCategory():
-    # current_user = get_jwt_identity()
-    # if not current_user:
-    #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     category = Category.query.all()
 
@@ -604,12 +609,12 @@ def getCourseCategory():
 
 #上传视频获取课程分类下所有课程内容 xiaojuzi v2 20240109
 @web_back_api.route('/getCourseByCategoryId', methods=['POST'])
-# @jwt_required()
+@jwt_required()
 def getCourseByCategoryId():
 
-    # current_user = get_jwt_identity()
-    # if not current_user:
-    #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     category_id = request.form.get('categoryId', None)
 
@@ -829,8 +834,8 @@ def process_mp4_video(video_path,file_name,course_id,episode):
         save_video_folder = os.path.dirname(video_path)
 
         # 将视频切片在上传 20240103
-        ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
-        ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
+        # ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
+        # ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
 
         # result, ts_list = generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
         result, ts_list = test_generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
