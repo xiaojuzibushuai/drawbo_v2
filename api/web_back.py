@@ -496,6 +496,7 @@ def mergeChunks():
     temp = file_name.split('.')[0]
     temp1 = f"http://{oss_bucket_name}.oss-cn-wuhan-lr.aliyuncs.com/{temp}"
 
+    #xiaojuzi v2 update by 2024116
     if course.video_files:
         data_list = json.loads(course.video_files)
         for video in data_list:
