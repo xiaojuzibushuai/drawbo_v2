@@ -1065,12 +1065,12 @@ def getVideoKey():
 
 #获取课程视频列表接口 20240118 xiaojuzi v2
 @web_back_api.route('/getCourseVideoListByCourseId', methods=['POST'])
-# @jwt_required()
+@jwt_required()
 def getCourseVideoListByCourseId():
 
-    # current_user = get_jwt_identity()
-    # if not current_user:
-    #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     course_id = request.form.get('courseId', None)
     course = Course.query.filter_by(id=course_id).first()
@@ -1078,17 +1078,49 @@ def getCourseVideoListByCourseId():
     if not course:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    data_list = {
-        'video_files': '',
-        'process_video_state': ''
-    }
+    data_list = []
+    video_data = None
     if course.video_files:
-        data_list['video_files'] = json.loads(course.video_files)
+        video_data = json.loads(course.video_files)
 
     if course.process_video_state:
-        data_list['process_video_state'] = json.loads(course.process_video_state)
+        data = {"video_base_url": "",
+                "episode": "",
+                "video_ts_list": "",
+                "process_video_state": ""}
 
-    return jsonify(ret_data(SUCCESS, data=data_list))
+        state_data = json.loads(course.process_video_state)
+        for state in state_data:
+            if video_data:
+                for video in video_data:
+                    if video['episode'] == state['episode']:
+                        data['video_base_url'] = video['video_base_url']
+                        data['video_ts_list'] = video['video_ts_list']
+                        data['process_video_state'] = state['process_video_state']
+                        data['episode'] = state['episode']
+                        data_list.append(data)
+
+                        video_data.remove(video)
+
+                        # 清除数据
+                        data = {"video_base_url": "",
+                                "episode": "",
+                                "video_ts_list": "",
+                                "process_video_state": ""}
+                        break
+
+            else:
+                data['video_base_url'] = ""
+                data['video_ts_list'] = ""
+                data['process_video_state'] = state['process_video_state']
+                data['episode'] = state['episode']
+                data_list.append(data)
+
+
+        return jsonify(ret_data(SUCCESS, data=data_list))
+
+    else:
+        return jsonify(ret_data(SUCCESS, data=data_list))
 
 
 
