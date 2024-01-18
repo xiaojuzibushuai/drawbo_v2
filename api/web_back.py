@@ -1065,12 +1065,12 @@ def getVideoKey():
 
 #获取课程视频列表接口 20240118 xiaojuzi v2
 @web_back_api.route('/getCourseVideoListByCourseId', methods=['POST'])
-@jwt_required()
+# @jwt_required()
 def getCourseVideoListByCourseId():
 
-    current_user = get_jwt_identity()
-    if not current_user:
-        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    # current_user = get_jwt_identity()
+    # if not current_user:
+    #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     course_id = request.form.get('courseId', None)
     course = Course.query.filter_by(id=course_id).first()
@@ -1078,9 +1078,15 @@ def getCourseVideoListByCourseId():
     if not course:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    data_list = []
+    data_list = {
+        'video_files': '',
+        'process_video_state': ''
+    }
     if course.video_files:
-        data_list = json.loads(course.video_files)
+        data_list['video_files'] = json.loads(course.video_files)
+
+    if course.process_video_state:
+        data_list['process_video_state'] = json.loads(course.process_video_state)
 
     return jsonify(ret_data(SUCCESS, data=data_list))
 
