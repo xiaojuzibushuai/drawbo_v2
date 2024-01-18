@@ -17,7 +17,7 @@ class Course(db.Model):
 
     video_files = db.Column(db.Text, nullable=True) #20231227
     process_video_path = db.Column(db.Text, nullable=True) # 20240108 本地视频处理路径
-    process_video_state = db.Column(db.Integer, default=0) #0 未处理 1 处理中 2 处理完成 3处理出错 20240108
+    process_video_state = db.Column(db.Text, nullable=True) #0 未处理 1 处理中 2 处理完成 3处理出错 20240108
 
 
     is_public = db.Column(db.Integer, default=1)
