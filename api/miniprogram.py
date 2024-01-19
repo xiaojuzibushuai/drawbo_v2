@@ -2282,7 +2282,9 @@ def category():
         category_list = dict_fill_url(category_list, ['save_path'])
 
         for cate in category_list:
+            #全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 cate['lock'] = True  TODO
             cate['lock'] = True
+            # cate['lock'] = False
 
     return jsonify(ret_data(SUCCESS, data=category_list))
 
@@ -2384,6 +2386,10 @@ def course():
     if course_objs:
         course_list = model_to_dict(course_query)
         course_list = dict_fill_url(course_list, ['img_files'])
+
+        # 全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 没有这个循环 TODO
+        # for data in course_list:
+        #     data['use_count'] = 999
 
         # 未绑定设置默认音量是0
         # if not device_id:

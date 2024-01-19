@@ -204,6 +204,12 @@ def mqtt_push_data() -> object:
             if not device_course:
                 return jsonify(ret_data(SYSTEM_ERROR))
 
+            # 更新设备当前课程  临时修改去掉使用次数判断待 加回 xiaojuzi v2 20240119
+            # 全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 有下面判断if device_course.use_count:  TODO
+            # arg = device_course.course.save_path
+            # # 更新设备当前课程
+            # device.course_name = device_course.course.title
+            # device.course_id = int(course_id)
             if device_course.use_count:
                 arg = device_course.course.save_path
 
