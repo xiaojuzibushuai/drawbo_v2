@@ -40,7 +40,7 @@ from utils.error_code import PARAMS_ERROR, PHONE_NUMBER_ERROR, PHONE_NOT_FIND, S
     VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT, VIDEO_UPLOAD_FAST_SUCCESS, VIDEO_IS_PROCESSING
 from utils.tools import ret_data, check_password, getUserIp, model_to_dict, dict_fill_url, get_location_by_ip, \
     video_resource_decrypt, video_resource_encrypt, paginate_data
-from utils.video_utils import generate_m3u8, test_generate_m3u8
+from utils.video_utils import generate_m3u8, test_generate_m3u8, get_ts_list
 
 web_back_api = Blueprint('web_back', __name__, url_prefix='/api/v2/web_back')
 
@@ -376,7 +376,7 @@ def checkChunk():
         return jsonify(ret_data(PARAMS_ERROR))
 
     # 分块文件路径
-    extension = file_name.split('.')[1]
+    extension = file_name.split('.')[-1]
 
     if extension != 'mp4':
         return jsonify(ret_data(VIDEO_FORMAT_ERROR))
@@ -509,7 +509,7 @@ def uploadChunk():
                 '\\', '/')
 
             # 分块文件路径
-            extension = file_name.split('.')[1]
+            extension = file_name.split('.')[-1]
 
             if extension != 'mp4':
                 return jsonify(ret_data(VIDEO_FORMAT_ERROR))
@@ -571,7 +571,7 @@ def mergeChunks():
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static').replace(
         '\\', '/')
 
-    extension = file_name.split('.')[1]
+    extension = file_name.split('.')[-1]
 
     chunkFilePathFolder = os.path.dirname(getFilePathByMd5(fileMd5, extension))
 
@@ -615,23 +615,23 @@ def mergeChunks():
                                            args=(video_path, file_name.split('.')[0], course_id, episode))
         timer_thread.start()
 
-        # 视频处理中
+        # 视频处理中 逻辑修改20240119 xiaojuzi v2
         # course.process_video_state = 1
 
         if course.process_video_path:
             data_list = json.loads(course.process_video_path)
             for video in data_list:
-                if not video['episode'] == episode:
-                    data = {"process_video_path": video_path, "episode": episode}
-                    data_list.append(data)
-                    # new_data = course.process_video_path + "," + json.dumps(data)
+                if video['episode'] == episode:
+                    video['process_video_path'] = video_path
                     course.process_video_path = json.dumps(data_list)
-                    # print(course.process_video_path)
                     break
-                else:
-                   video['process_video_path'] = video_path
-                   course.process_video_path = json.dumps(data_list)
-                   break
+            else:
+                data = {"process_video_path": video_path, "episode": episode}
+                data_list.append(data)
+                # new_data = course.process_video_path + "," + json.dumps(data)
+                course.process_video_path = json.dumps(data_list)
+                # print(course.process_video_path)
+
         else:
             data = {"process_video_path": video_path, "episode": episode}
             course.process_video_path = json.dumps([data])
@@ -644,6 +644,10 @@ def mergeChunks():
                 video['process_video_state'] = 1
                 course.process_video_state = json.dumps(data_list1)
                 break
+        else:
+            data = {"episode": episode, "process_video_state": 1}
+            data_list1.append(data)
+            course.process_video_state = json.dumps(data_list1)
 
         db.session.commit()
 
@@ -838,7 +842,7 @@ def merge_blobs_to_video(directory,video_path,chunkTotal):
         # print(video_files)
 
         if int(len(video_files)) != int(chunkTotal):
-            logging.info('分块文件数量与预期不一致')
+            logging.info('分块文件数量与预期不一致 原块数：%s,接收块数：%s' %(chunkTotal,len(video_files)))
             return False
 
         fileMd5 = video_files[0].split('-')[0]
@@ -877,6 +881,7 @@ def merge_blobs_to_video(directory,video_path,chunkTotal):
             logging.info('清理临时视频文件失败：' + str(e))
 
         return False
+    #暂时注掉 20240119 xiaojuzi
     finally:
         try:
             # 清理临时分块文件
@@ -895,7 +900,7 @@ def getFilePathByMd5(fileMd5: str,extension: str):
 
 
 
-#处理mp4视频将其切片且加密并上传到OSS xiaojuzi v2 20240105
+#处理mp4视频将其切片且加密并上传到OSS xiaojuzi v2 20240105 逻辑修改20240119 xiaojuzi v2
 def process_mp4_video(video_path,file_name,course_id,episode):
 
     with app.app_context():
@@ -905,8 +910,8 @@ def process_mp4_video(video_path,file_name,course_id,episode):
         save_video_folder = os.path.dirname(video_path)
 
         # 将视频切片在上传 20240103
-        ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
-        ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
+        # ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
+        # ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
 
         # result, ts_list = generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
         result, ts_list = test_generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
@@ -922,10 +927,15 @@ def process_mp4_video(video_path,file_name,course_id,episode):
                     video['process_video_state'] = 3
                     course.process_video_state = json.dumps(data_list)
                     break
+            else:
+                data = {"episode": episode, "process_video_state": 3}
+                data_list.append(data)
+                course.process_video_state = json.dumps(data_list)
 
             db.session.commit()
             return VIDEO_UPLOAD_FAILED
 
+        upload_ts = []
         for ts in ts_list:
             ts_path = os.path.join(save_video_folder, ts).replace('\\', '/')
             oss_path = f"{file_name}/{ts}"
@@ -934,17 +944,30 @@ def process_mp4_video(video_path,file_name,course_id,episode):
             with open(ts_path, 'rb') as f1:
                 result = upload_file(oss_path, f1)
                 # print(result)
-            if result != 0:
-                # 视频处理出错
-                data_list = json.loads(course.process_video_state)
-                for video in data_list:
-                    if video['episode'] == episode:
-                        video['process_video_state'] = 3
-                        course.process_video_state = json.dumps(data_list)
-                        break
-
-                db.session.commit()
-                return VIDEO_UPLOAD_FAILED
+                if result != 0:
+                    # 视频上传出错 再上传一次 20240119 xiaojuzi v2
+                    result1 = upload_file(oss_path, f1)
+                    if result1 != 0:
+                        upload_ts.append(0)
+                        # 视频处理出错
+                        data_list = json.loads(course.process_video_state)
+                        for video in data_list:
+                            if video['episode'] == episode:
+                                if video['process_video_state'] != 4:
+                                    video['process_video_state'] = 4
+                                    course.process_video_state = json.dumps(data_list)
+                                break
+                        else:
+                            data = {"episode": episode, "process_video_state": 4}
+                            data_list.append(data)
+                            course.process_video_state = json.dumps(data_list)
+                    else:
+                        upload_ts.append(1)
+                    # upload_ts.append(0)
+                # db.session.commit()
+                else:
+                    upload_ts.append(1)
+                # return VIDEO_UPLOAD_FAILED
 
         # 上传索引文件
         index_path = os.path.join(save_video_folder, 'encrypted_slice.m3u8').replace('\\', '/')
@@ -952,19 +975,39 @@ def process_mp4_video(video_path,file_name,course_id,episode):
         with open(index_path, 'rb') as f1:
             # print(result)
             result = upload_file(oss_path1, f1)
-        if result != 0:
-            # 视频处理出错
-            data_list = json.loads(course.process_video_state)
-            for video in data_list:
-                if video['episode'] == episode:
-                    video['process_video_state'] = 3
-                    course.process_video_state = json.dumps(data_list)
-                    break
+            if result != 0:
+                # 视频上传出错 再上传一次 20240119 xiaojuzi v2
+                result1 = upload_file(oss_path1, f1)
+                if result1 != 0:
+                    upload_ts.append(0)
+                    # 视频处理出错
+                    data_list = json.loads(course.process_video_state)
+                    for video in data_list:
+                        if video['episode'] == episode:
+                            if video['process_video_state'] != 4:
+                                video['process_video_state'] = 4
+                                course.process_video_state = json.dumps(data_list)
+                            break
+                    else:
+                        data = {"episode": episode, "process_video_state": 4}
+                        data_list.append(data)
+                        course.process_video_state = json.dumps(data_list)
+                else:
+                    upload_ts.append(1)
+                # upload_ts.append(0)
+            # db.session.commit()
+            else:
+                upload_ts.append(1)
+            # return VIDEO_UPLOAD_FAILED
 
-            db.session.commit()
-            return VIDEO_UPLOAD_FAILED
+        #写入上传状况文件 记录日志 在此之前会自动重传一次还不成功就只能手动上传 xiaojuziv2 20240119
+        upload_result = os.path.join(save_video_folder, 'upload_file.txt').replace('\\', '/')
+        with open(upload_result, 'w') as f:
+            for i in upload_ts:
+                f.write(str(i) + "\n")
 
-        #将视频文件信息保存到数据库里
+
+        #将视频文件信息保存到数据库里 逻辑修改20240119 xiaojuzi v2
         if course.video_files:
             # video_url = video_resource_decrypt(course.video_url)
             # temp = video_url + "," + f"http://{oss_bucket_name}.oss-cn-wuhan-lr.aliyuncs.com/{file_name}"
@@ -974,15 +1017,16 @@ def process_mp4_video(video_path,file_name,course_id,episode):
             # 指切片从0-len(ts_list)
             data_list = json.loads(course.video_files)
             for video in data_list:
-                if not video['episode'] == episode:
-                    data = {"video_base_url": temp, "video_ts_list": len(ts_list),"episode": episode}
-                    # new_data = course.video_files + "," + json.dumps(data)
-                    data_list.append(data)
-                    course.video_files = json.dumps(data_list)
-                else:
+                if video['episode'] == episode:
                     video['video_base_url'] = temp
                     video['video_ts_list'] = len(ts_list)
                     course.video_files = json.dumps(data_list)
+                    break
+            else:
+                data = {"video_base_url": temp, "video_ts_list": len(ts_list), "episode": episode}
+                # new_data = course.video_files + "," + json.dumps(data)
+                data_list.append(data)
+                course.video_files = json.dumps(data_list)
         else:
             # 第一次上传视频文件
             temp = f"http://{oss_bucket_name}.oss-cn-wuhan-lr.aliyuncs.com/{file_name}"
@@ -999,6 +1043,10 @@ def process_mp4_video(video_path,file_name,course_id,episode):
                 video['process_video_state'] = 2
                 course.process_video_state = json.dumps(data_list1)
                 break
+        else:
+            data = {"episode": episode, "process_video_state": 2}
+            data_list1.append(data)
+            course.process_video_state = json.dumps(data_list1)
         # course.process_video_state = 2
         db.session.commit()
 
@@ -1079,9 +1127,16 @@ def getCourseVideoListByCourseId():
         return jsonify(ret_data(PARAMS_ERROR))
 
     data_list = []
+    # unique_episodes = set()
     video_data = None
     if course.video_files:
         video_data = json.loads(course.video_files)
+    # if course.video_files:
+    #     temp = json.loads(course.video_files)
+    #     for video in temp:
+    #         if video['episode'] not in unique_episodes:
+    #             unique_episodes.add(video['episode'])
+    #             video_data.append(video)
 
     if course.process_video_state:
         data = {"video_base_url": "",
@@ -1090,6 +1145,7 @@ def getCourseVideoListByCourseId():
                 "process_video_state": ""}
 
         state_data = json.loads(course.process_video_state)
+        # unique_episodes.clear()
         for state in state_data:
             if video_data:
                 for video in video_data:
@@ -1100,14 +1156,21 @@ def getCourseVideoListByCourseId():
                         data['episode'] = state['episode']
                         data_list.append(data)
 
+                        # unique_episodes.add(state['episode'])
                         video_data.remove(video)
-
-                        # 清除数据
-                        data = {"video_base_url": "",
-                                "episode": "",
-                                "video_ts_list": "",
-                                "process_video_state": ""}
                         break
+                else:
+                    data['video_base_url'] = ""
+                    data['video_ts_list'] = ""
+                    data['process_video_state'] = state['process_video_state']
+                    data['episode'] = state['episode']
+                    data_list.append(data)
+
+                # 清除数据 创建新的字典对象
+                data = {"video_base_url": "",
+                        "episode": "",
+                        "video_ts_list": "",
+                        "process_video_state": ""}
 
             else:
                 data['video_base_url'] = ""
@@ -1116,8 +1179,15 @@ def getCourseVideoListByCourseId():
                 data['episode'] = state['episode']
                 data_list.append(data)
 
+                # 清除数据 创建新的字典对象
+                data = {"video_base_url": "",
+                        "episode": "",
+                        "video_ts_list": "",
+                        "process_video_state": ""}
 
-        return jsonify(ret_data(SUCCESS, data=data_list))
+        sorted_data_list = sorted(data_list, key=lambda x: int(x['episode']))
+
+        return jsonify(ret_data(SUCCESS, data=sorted_data_list))
 
     else:
         return jsonify(ret_data(SUCCESS, data=data_list))
@@ -1326,7 +1396,7 @@ def updateAudioJsonByCourseId():
 
     return jsonify(ret_data(SUCCESS, data='修改成功'))
 
-#删除课程绑定的视频 20240116 xiaojuzi v2
+#删除课程绑定的视频 20240116 xiaojuzi v2 更改逻辑 20240119 xiaojuzi v2
 @web_back_api.route('/deleteVideoByCourseId', methods=['POST'])
 @jwt_required()
 def deleteVideoByCourseId():
@@ -1347,57 +1417,136 @@ def deleteVideoByCourseId():
         return jsonify(ret_data(PARAMS_ERROR))
 
     data_list = json.loads(course.video_files)
+    data_list1 = json.loads(course.process_video_state)
 
     flag = True
 
-    for data in data_list:
-        if data['episode'] == episode:
-            # folder = data['video_base_url'].split('/')[-1]
-            # print(folder)
-            # delete_folder(folder)
-            # print(result)
-            data_list.remove(data)
-            flag = False
-            # print(len(data_list))
-            if len(data_list) == 0:
-                course.video_files = None
-            else:
-                course.video_files = json.dumps(data_list)
+    if data_list1:
+        for data1 in data_list1:
+            if data1['episode'] == episode:
+                data_list1.remove(data1)
+                flag = False
+                if len(data_list1) == 0:
+                    course.process_video_state = None
+                else:
+                    course.process_video_state = json.dumps(data_list1)
+                break
 
-            break
+    if data_list:
+        for data in data_list:
+            if data['episode'] == episode:
+                # folder = data['video_base_url'].split('/')[-1]
+                # print(folder)
+                # delete_folder(folder)
+                # print(result)
+                data_list.remove(data)
+
+                flag = False
+                # print(len(data_list))
+                if len(data_list) == 0:
+                    course.video_files = None
+                else:
+                    course.video_files = json.dumps(data_list)
+
+                break
 
     if flag:
         return jsonify(ret_data(PARAMS_ERROR,data="该课程没有此视频集数！"))
 
     #删除本地文件数据
-    data_list1 = json.loads(course.process_video_path)
+    data_list2 = json.loads(course.process_video_path)
 
-    for data in data_list1:
+    for data in data_list2:
         if data['episode'] == episode:
             # folder = '/'.join(data['process_video_path'].split('/')[:-1])
             # print(folder)
             # shutil.rmtree(folder)
-            data_list1.remove(data)
+            data_list2.remove(data)
             # print(len(data_list1))
-            if len(data_list1) == 0:
+            if len(data_list2) == 0:
                 course.process_video_path = None
             else:
-                course.process_video_path = json.dumps(data_list1)
+                course.process_video_path = json.dumps(data_list2)
 
-            break
-
-    data_list2 = json.loads(course.process_video_state)
-
-    for data in data_list2:
-        if data['episode'] == episode:
-            data_list2.remove(data)
-            if len(data_list2) == 0:
-                course.process_video_state = None
-            else:
-                course.process_video_state = json.dumps(data_list2)
             break
 
     db.session.commit()
 
     return jsonify(ret_data(SUCCESS, data='删除视频成功'))
 
+#课程绑定视频手动重新上传 20240119 xiaojuzi v2
+@web_back_api.route('/restartUploadVideoByCourseId', methods=['POST'])
+@jwt_required()
+def restartUploadVideoByCourseId():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    courseId = request.form.get('courseId', None)
+    episode = request.form.get('episode', None)
+
+    if not courseId or not episode:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    course = Course.query.filter_by(id=courseId).first()
+
+    if not course:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    if course.process_video_path:
+        data_list = json.loads(course.process_video_path)
+        for data in data_list:
+            if data['episode'] == episode:
+                folder = "/".join(data['process_video_path'].split('/')[:-1])
+                path = os.path.join(folder,'upload_file.txt').replace('\\','/')
+                temp =data['process_video_path'].split('/')[-1]
+
+                file_name = temp.split('.')[:-1]
+
+                if not os.path.exists(path):
+                    return jsonify(ret_data(PARAMS_ERROR,data="视频还未处理完毕或处理错误，未进行上传文件日志生成！"))
+
+                with open(path,'r') as f:
+                    content = f.read().splitlines()
+
+                ts_list = get_ts_list(os.path.join(folder, 'encrypted_slice.m3u8').replace("\\", "/"))
+
+                for i,n in enumerate(content):
+
+                    if i == len(content)-1:
+                        index_path = os.path.join(folder, 'encrypted_slice.m3u8').replace('\\', '/')
+                        oss_path1 = f"{file_name}/encrypted_slice.m3u8"
+                        with open(index_path, 'rb') as f1:
+                            result = upload_file(oss_path1, f1)
+                            if result == 0:
+                                content[i] = 1
+
+                    if n == str(0) and i != len(content)-1:
+
+                        ts_path = os.path.join(folder, ts_list[i]).replace('\\', '/')
+                        oss_path = f"{file_name}/{ts_list[i]}"
+                        # 上传切片文件
+                        with open(ts_path, 'rb') as f1:
+                            result = upload_file(oss_path, f1)
+                            if result == 0:
+                                content[i] = 1
+
+                #重新写入上传文件日志
+                flag = True
+                with open(path, 'w') as f:
+                    for i in content:
+                        if i == str(0):
+                            flag = False
+                        f.write(str(i) + "\n")
+
+                if flag:
+                    data_list = json.loads(course.process_video_state)
+                    for video in data_list:
+                        if video['episode'] == episode:
+                            video['process_video_state'] = 2
+                            course.process_video_state = json.dumps(data_list)
+                            db.session.commit()
+                            break
+
+    return jsonify(ret_data(SUCCESS, data='重新上传视频成功'))
