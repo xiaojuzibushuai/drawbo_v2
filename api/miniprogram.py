@@ -898,6 +898,7 @@ def getUnUserSceneDeviceById():
     return jsonify(ret_data(SUCCESS,data=data_list))
 
 #用户场景详情设备查询 xiaojuzi v2 20231213
+#20240122 xiaojuzi v2 逻辑修改 查画小宇时还要带上已绑定的外设
 @miniprogram_api.route('/getUserSceneDetailById', methods=['POST'])
 @jwt_required()
 def getUserSceneDetailById():
@@ -938,7 +939,11 @@ def getUserSceneDetailById():
             'devicename': '',
             'd_type': ''
         }
+
         for ue in ued:
+            #绑定过画小宇的设备必须通过画小宇来整体分享 20240122 xiaojuzi v2
+            if ue.external_deviceid:
+                continue
             ed = ExternalDevice.query.filter_by(deviceid=ue.deviceid).first()
             ued_dict['deviceid'] = ed.deviceid
             ued_dict['devicename'] = ed.devicename
@@ -954,16 +959,44 @@ def getUserSceneDetailById():
         ud_dict = {
             'deviceid': '',
             'devicename': '',
+            'child_list': [],
         }
+
+        child_dict = {
+            'deviceid': '',
+            'devicename': '',
+            'd_type': ''
+        }
+
         for u in ud:
             d = Device.query.filter_by(deviceid=u.deviceid).first()
             ud_dict['deviceid'] = d.deviceid
             ud_dict['devicename'] = d.devicename
 
+            #新增逻辑 20230122 xiaojuzi v2
+            devices = UserExternalDevice.query.filter_by(userid=userid,
+                                                         external_deviceid=u.deviceid).all()
+
+            if devices:
+                for device in devices:
+                    ed = ExternalDevice.query.filter_by(deviceid=device.deviceid).first()
+                    child_dict['deviceid'] = ed.deviceid
+                    child_dict['devicename'] = ed.devicename
+                    child_dict['d_type'] = ed.d_type
+
+                    ud_dict['child_list'].append(child_dict)
+                    child_dict = {
+                        'deviceid': '',
+                        'devicename': '',
+                        'd_type': ''
+                    }
+
+
             data_dict['UserDevice'].append(ud_dict)
             ud_dict = {
                 'deviceid': '',
                 'devicename': '',
+                'child_list': [],
             }
 
     # user_scene = model_to_dict(user_scene)
@@ -1010,6 +1043,7 @@ def createUserSceneSub():
 
 
 #用户场景添加绑定设备 xiaojuzi v2 20231214
+#20240122 修改逻辑  绑定画小宇就要同步加入其绑定外设 xiaojuzi v2
 @miniprogram_api.route('/createUserSceneBindDevice', methods=['POST'])
 @jwt_required()
 def createUserSceneBindDevice():
@@ -1042,6 +1076,7 @@ def createUserSceneBindDevice():
 
 
 #用户场景解除绑定设备 xiaojuzi v2 20231214
+#20240122 修改逻辑  解绑画小宇就要同步解绑其绑定外设 xiaojuzi v2
 @miniprogram_api.route('/userSceneUnBindDevice', methods=['POST'])
 @jwt_required()
 def userSceneUnBindDevice():
@@ -1081,14 +1116,36 @@ def getUserSceneBindDeviceStrategy(sceneid,deviceid,userid,strategy):
     if ued:
         if strategy == 'bind':
             ued.sceneid = sceneid
+            ued.is_choose = True
         else:
             ued.sceneid = None
 
     if ud:
         if strategy == 'bind':
             ud.sceneid = sceneid
+            ud.is_choose = True
+
+            #新增逻辑 绑定画小宇就要同步加入其绑定外设 20240122 xiaojuzi v2
+            devices = UserExternalDevice.query.filter_by(userid=userid,
+                                                         external_deviceid=deviceid).all()
+            if devices:
+                for device in devices:
+                    ued1 = UserExternalDevice.query.filter_by(userid=userid, deviceid=device.deviceid).first()
+                    if ued1:
+                        ued1.sceneid = sceneid
+                        ued1.is_choose = True
+
         else:
             ud.sceneid = None
+
+            # 新增逻辑 解绑画小宇就要同步解绑其绑定外设 20240122 xiaojuzi v2
+            devices = UserExternalDevice.query.filter_by(userid=userid,
+                                                         external_deviceid=deviceid).all()
+            if devices:
+                for device in devices:
+                    ued1 = UserExternalDevice.query.filter_by(userid=userid, deviceid=device.deviceid).first()
+                    if ued1:
+                        ued1.sceneid = None
 
     db.session.commit()
 
@@ -1182,6 +1239,7 @@ def createUserSceneShareDevice():
 
 
 #用户通过分享码绑定设备 xiaojuzi v2 20231214
+#20240122 接口逻辑修改 updateby xiaojuzi v2
 @miniprogram_api.route('/userSceneShareBindDevice', methods=['POST'])
 @jwt_required()
 def userSceneShareBindDevice():
@@ -1211,34 +1269,61 @@ def userSceneShareBindDevice():
             ued1 = UserExternalDevice.query.filter_by(userid=share_code.userid,deviceid=share_code.deviceid).first()
             if ud1:
                 ud = User_Device.query.filter_by(userid=userid, deviceid=share_code.deviceid).first()
-                # 20231216 xiaojuzi v2 增加逻辑
-                if not ud:
-                    # 判断是否有共享设备的场景没有就创建
-                    dg = DeviceGroup.query.filter_by(id=ud1.sceneid, userid=share_code.userid).first()
-                    dg1 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
-                                                      sub_scenename=dg.sub_scenename).first()
-                    if not dg1:
-                        dg2 = DeviceGroup(userid=userid, scenename=dg.scenename, sub_scenename=dg.sub_scenename)
-                        db.session.add(dg2)
 
-                    dg3 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
-                                                      sub_scenename=dg.sub_scenename).first()
+                # 判断是否有共享设备的场景没有就创建
+                dg = DeviceGroup.query.filter_by(id=ud1.sceneid, userid=share_code.userid).first()
+
+                dg1 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
+                                                  sub_scenename=dg.sub_scenename).first()
+                if not dg1:
+                    dg2 = DeviceGroup(userid=userid, scenename=dg.scenename, sub_scenename=dg.sub_scenename)
+                    db.session.add(dg2)
+
+                # 20231216 xiaojuzi v2 增加逻辑
+                dg3 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
+                                                  sub_scenename=dg.sub_scenename).first()
+                if ud:
+                    ud.sceneid = dg3.id
+                    ud.is_choose = True
+                else:
+
                     ud2 = User_Device(userid=userid, deviceid=share_code.deviceid, is_choose=True, sceneid=dg3.id,
                                       status=1, shareby_userid=share_code.userid, share_code=share_code.code)
                     db.session.add(ud2)
 
+                # devices = UserExternalDevice.query.filter_by(userid=share_code.userid, external_deviceid=share_code.deviceid).all()
+                # if devices:
+                #     for device in devices:
+                #         ued = UserExternalDevice.query.filter_by(userid=userid, deviceid=device.deviceid).first()
+                #         ed = ExternalDevice.query.filter_by(deviceid=device.deviceid).first()
+                #         if ued:
+                #             ued.sceneid = dg3.id
+                #             ued.is_choose = True
+                #         else:
+                #
+                #             ued2 = UserExternalDevice(userid=userid, deviceid=device.deviceid, is_choose=True,
+                #                                       sceneid=dg3.id, status=1, d_type=ed.d_type,
+                #                                       shareby_userid=share_code.userid, share_code=share_code.code)
+                #             db.session.add(ued2)
+
             if ued1:
                 ued = UserExternalDevice.query.filter_by(userid=userid, deviceid=share_code.deviceid).first()
-                if not ued:
-                    # 判断是否有共享设备的场景没有就创建
-                    dg = DeviceGroup.query.filter_by(id=ued1.sceneid, userid=share_code.userid).first()
-                    dg1 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
-                                                      sub_scenename=dg.sub_scenename).first()
-                    if not dg1:
-                        dg2 = DeviceGroup(userid=userid, scenename=dg.scenename, sub_scenename=dg.sub_scenename)
-                        db.session.add(dg2)
-                    dg3 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
-                                                      sub_scenename=dg.sub_scenename).first()
+
+                # 判断是否有共享设备的场景没有就创建
+                dg = DeviceGroup.query.filter_by(id=ued1.sceneid, userid=share_code.userid).first()
+                dg1 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
+                                                  sub_scenename=dg.sub_scenename).first()
+                if not dg1:
+                    dg2 = DeviceGroup(userid=userid, scenename=dg.scenename, sub_scenename=dg.sub_scenename)
+                    db.session.add(dg2)
+
+                dg3 = DeviceGroup.query.filter_by(userid=userid, scenename=dg.scenename,
+                                                  sub_scenename=dg.sub_scenename).first()
+                if ued:
+                    ued.sceneid = dg3.id
+                    ued.is_choose = True
+                else:
+
                     ed = ExternalDevice.query.filter_by(deviceid=share_code.deviceid).first()
                     ued2 = UserExternalDevice(userid=userid, deviceid=share_code.deviceid, is_choose=True,
                                               sceneid=dg3.id, status=1, d_type=ed.d_type,

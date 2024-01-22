@@ -613,7 +613,7 @@ def mergeChunks():
         # loop.run_until_complete(task)
 
         # 创建后台进程来处理视频任务 20240109 xiaojuzi v2
-        timer_thread = threading.Timer(5, process_mp4_video,
+        timer_thread = threading.Timer(15, process_mp4_video,
                                            args=(video_path, course_id, episode,chunkFilePathFolder))
         timer_thread.start()
 
@@ -908,7 +908,6 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
 
     with app.app_context():
         # print('已经开始视频处理')
-        course = Course.query.filter_by(id=course_id).first()
 
         save_video_folder = os.path.dirname(video_path)
 
@@ -921,7 +920,7 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
 
         # print(result)
         # print(ts_list)
-
+        course = Course.query.filter_by(id=course_id).first()
         if not result:
             #视频处理出错
             data_list = json.loads(course.process_video_state)

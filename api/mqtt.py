@@ -944,7 +944,6 @@ def testMqttPushFacePictureDataImpl():
         print("文件保存或转换失败:", str(e))
 
     # return jsonify(ret_data(SUCCESS))
-    #TODO 待修改为自动选择哪台设备画人像 20240102
     result = mqttPushFacePictureDataImpl(openid,deviceid, file_dir)
 
     return jsonify(ret_data(result))
