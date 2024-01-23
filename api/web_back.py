@@ -429,6 +429,13 @@ def checkChunk():
     # jwt_redis_blocklist.set(fileMd5.split('-')[0], "", ex=timedelta(days=3))
     data = jwt_redis_blocklist.get(fileMd5.split('-')[0])
     if data:
+        # 更新过期时间 20240123 xiaojuzi v2
+        jwt_redis_blocklist.expire(fileMd5.split('-')[0],7 * 24 * 60 * 60)
+        # ttl = jwt_redis_blocklist.ttl(fileMd5.split('-')[0])
+        date_format = '%Y-%m-%d %H:%M:%S'
+        expiry_time = (datetime.now() + timedelta(seconds=7 * 24 * 60 * 60)).strftime(date_format)
+        logging.info('redis中获取到key:%s,过期时间已更新:%s' % (fileMd5.split('-')[0],expiry_time))
+
         data = json.loads(data)
         if course.video_files:
             data_list = json.loads(course.video_files)
