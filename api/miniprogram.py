@@ -1072,7 +1072,7 @@ def createUserSceneBindDevice():
     if result == SUCCESS:
         return jsonify(ret_data(SUCCESS,data='场景绑定设备成功!'))
     else:
-        return jsonify(ret_data(result,data='场景绑定设备失败!'))
+        return jsonify(ret_data(result,data='请先绑定外设对应画小宇设备！'))
 
 
 #用户场景解除绑定设备 xiaojuzi v2 20231214
@@ -1115,6 +1115,10 @@ def getUserSceneBindDeviceStrategy(sceneid,deviceid,userid,strategy):
 
     if ued:
         if strategy == 'bind':
+            #新增逻辑 绑定外设的画小宇必须通过绑定画小宇进行绑定 20240123 xiaojuzi
+            if ued.external_deviceid:
+                return SCENE_ERROR
+
             ued.sceneid = sceneid
             ued.is_choose = True
         else:
@@ -1257,7 +1261,7 @@ def userSceneShareBindDevice():
     if not device_share_code or not userid:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    share_codes = ShareCodes.query.filter(ShareCodes.code==device_share_code,ShareCodes.end_date > datetime.now()).all()
+    share_codes = ShareCodes.query.filter(ShareCodes.code == device_share_code,ShareCodes.end_date > datetime.now()).all()
 
     if share_codes:
         #20231214 xiaojuzi v2 增加逻辑
