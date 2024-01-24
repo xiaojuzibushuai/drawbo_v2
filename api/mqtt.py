@@ -888,6 +888,7 @@ def testMqttPushFacePictureDataImpl():
     # deviceid = '8c000c6d6004c991e52'
     # openid = 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc'
     # rotate = 2
+
     default_rotate = 4
     if rotate:
         default_rotate = int(rotate)

@@ -17,6 +17,8 @@ from datetime import datetime, timedelta
 import oss2
 import redis
 import logging
+
+import requests
 from flask import request, jsonify, Blueprint
 from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
 from sqlalchemy import func, cast, Integer
@@ -1234,12 +1236,15 @@ def videoAutoPushDatToDevice():
 
     url = request.form.get('url', None)
 
-    base_url = "/".join(url.split("/")[:-1])
-    #TODO
-    arg = url.split('/')[-1].split('.')[0]
-
-    if not arg or not url:
+    if not url:
         return jsonify(ret_data(PARAMS_ERROR))
+
+    # TODO 之前逻辑 updateby xiaojuzi v2 20240124
+    # base_url = "/".join(url.split("/")[:-1])
+    # arg = url.split('/')[-1].split('.')[0]
+    #
+    # if not arg or not url:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     openid = current_user['openid']
 
@@ -1248,23 +1253,49 @@ def videoAutoPushDatToDevice():
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
-    for device in device_list:
+    #20240124 xiaojuzi v2 因不同平台协调问题 按领导方案修改逻辑
+    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
+    #要保存的文件的文件夹
+    save_file_folder = static_folder + f'/test/script_temp'
+    file_name = ''.join(url.split('/')[-1].split('.')[0].split('-')[:-1])
+    save_file_dat = os.path.join(save_file_folder,f'{file_name}.dat').replace("\\", "/")
+    temp_file_lrc = os.path.join(save_file_folder,f'{file_name}.lrc').replace("\\", "/")
+    # if not os.path.exists(save_file_dat):
+    #     os.makedirs(save_file_dat)
 
-        push_json = {
-            'type': 2,
-            'deviceid': device.deviceid,
-            'fromuser': openid,
-            'message': {
-                'arg': arg,
-                'url': base_url
+    response = requests.get(url)
+    if response.status_code == 200:
+        # 如果请求成功，将文件内容写入本地文件
+        with open(save_file_dat, 'wb') as f:
+            f.write(response.content)
+            logging.info("文件保存成功:%s" % save_file_dat)
+
+        with open(temp_file_lrc, 'w') as file:
+            file.write('000000000000000000000000000000000')
+
+            # print('文件保存成功')
+
+        for device in device_list:
+            push_json = {
+                'type': 2,
+                'deviceid': device.deviceid,
+                'fromuser': openid,
+                'message': {
+                    'arg': file_name,
+                    'url': HOST + '/test/script_temp/'
+                }
             }
-        }
 
-        logging.info(push_json)
+            logging.info(push_json)
 
-        errcode = send_message(push_json)
+            errcode = send_message(push_json)
 
-    return jsonify(ret_data(errcode))
+        return jsonify(ret_data(errcode))
+
+    else:
+        logging.info("下载失败，状态码:%s" % response.status_code)
+        return jsonify(ret_data(PARAMS_ERROR))
+        # print('下载失败，状态码:', response.status_code)
 
 
 #保存在线视频课程脚本接口  update 20240112  by xiaojuzi v2
