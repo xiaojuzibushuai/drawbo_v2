@@ -1235,7 +1235,8 @@ def videoAutoPushDatToDevice():
     url = request.form.get('url', None)
 
     base_url = "/".join(url.split("/")[:-1])
-    arg = url.split('/')[-2]
+    #TODO
+    arg = url.split('/')[-1].split('.')[0]
 
     if not arg or not url:
         return jsonify(ret_data(PARAMS_ERROR))

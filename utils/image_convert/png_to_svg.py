@@ -130,7 +130,6 @@ def resize_images(file_path, target_resolution):
     canvas.save(file_path)
 
 
-
 # 20240102 xiaojuzi v2 修改 旋转角度
 def cv_png_to_svg(rotate,png_file_path, svg_file_path):
 

@@ -888,6 +888,9 @@ def testMqttPushFacePictureDataImpl():
     # deviceid = '8c000c6d6004c991e52'
     # openid = 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc'
     # rotate = 2
+    default_rotate = 4
+    if rotate:
+        default_rotate = int(rotate)
 
     if not file or not openid:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -937,7 +940,7 @@ def testMqttPushFacePictureDataImpl():
 
         #20240102 xiaojuzi v2 rotate 旋转角度
         # 图像转为dat文件
-        test_convert_image_to_dat(rotate,save_file_png, save_file_svg, save_file_gcode, save_file_dat)
+        test_convert_image_to_dat(default_rotate,save_file_png, save_file_svg, save_file_gcode, save_file_dat)
 
 
     except Exception as e:
