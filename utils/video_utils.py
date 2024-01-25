@@ -110,22 +110,21 @@ def test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
 
         ffmpeg_path,
         '-i', video_path,
-        # '-c:v', 'libx264',  # 对视频编码
+        '-c:v', 'libx264',  # 对视频编码
         # '-c:v', 'copy',  # 对视频编码
-        # '-c:a', 'copy',  # 对音频复制
+        '-c:a', 'copy',  # 对音频复制
         # '-i', video_path,
-        # '-c:v', 'libx264',  # 对视频编码
-        # '-s', '1280x720',  # 输出视频分辨率
-        # '-pix_fmt', 'yuv420p',  # 输出视频像素格式
-        # '-b:a', '63k',  # 音频比特率
-        # '-b:v', '753k',  # 视频比特率
-        # '-r', '18',  # 输出视频帧率
-        '-c', 'copy',
+        '-s', '1920x1080',  # 输出视频分辨率 720p HD：1280x720  1080p 1920x1080 4K 3840x2160
+        '-pix_fmt', 'yuv420p',  # 输出视频像素格式
+        '-b:a', '128k',  # 音频比特率
+        '-b:v', '5000k',  # 视频比特率
+        '-r', '30',  # 输出视频帧率
+        # '-c', 'copy',
         # '-hls_key_info_file', 'keyinfo.txt',  # 秘钥文件
         '-hls_key_info_file', keyinfo,  # 秘钥文件
         '-f', 'hls',  # 生成hls
         # '-hls_time', str(ts_duration),
-        '-hls_time', '10',
+        '-hls_time', '5', #切片变小
         '-hls_list_size', '0',  # 设置hls播放列表
         '-threads', str(cpu_count),  # 多处理器
         '-hls_playlist_type', 'vod',  # 点播
@@ -134,6 +133,7 @@ def test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
         '-hls_flags', 'append_list',  # 追加到现有的播放列表
         os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/")
     ]
+
     try:
         subprocess.run(command, check=True)
     except subprocess.CalledProcessError as e:
