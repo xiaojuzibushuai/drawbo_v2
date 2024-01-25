@@ -1,4 +1,4 @@
-![image](https://github.com/xiaojuzibushuai/drawbo_v2/assets/57610201/5f361d88-38ce-47e6-9c25-5517fb0c3820)# drawbo_v2
+drawbo_v2
 工作开发-画小宇小程序后台代码实现
 
 因工作原因，项目缺少sql文件、全局项目配置文件config和课程静态文件。
@@ -14,3 +14,4 @@ http://iot.v5ky.com/scoreboard/#/
 http://iot.v5ky.com/course/#/login
 用户观看界面：
 http://iot.v5ky.com/userbackcourse/#/
+![image](https://github.com/xiaojuzibushuai/drawbo_v2/assets/57610201/5f361d88-38ce-47e6-9c25-5517fb0c3820)# 
