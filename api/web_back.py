@@ -27,7 +27,7 @@ from api.auth import jwt_redis_blocklist
 from api.miniprogram import validate_phone_number, generate_nickname, sendSms, validate_password, getDeviceByOpenid
 from api.mqtt import sortDeviceByMaster
 from config import REDIS_HOST, REDIS_DB, REDIS_PORT, oss_access_key_id, oss_access_key_secret, oss_bucket_name, \
-    oss_endpoint, ffmpeg_path, ffprobe_path, HOST, JWT_ACCESS_TOKEN_EXPIRES
+    oss_endpoint, ffmpeg_path, ffprobe_path, HOST, JWT_ACCESS_TOKEN_EXPIRES, cdn_oss_url
 from models.course import Category, DeviceCategory, Course, DeviceCourse
 from models.course_audio import CourseAudio
 from models.device import Device
@@ -43,7 +43,7 @@ from utils.error_code import PARAMS_ERROR, PHONE_NUMBER_ERROR, PHONE_NOT_FIND, S
     VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT, VIDEO_UPLOAD_FAST_SUCCESS, VIDEO_IS_PROCESSING
 from utils.tools import ret_data, check_password, getUserIp, model_to_dict, dict_fill_url, get_location_by_ip, \
     video_resource_decrypt, video_resource_encrypt, paginate_data
-from utils.video_utils import generate_m3u8, test_generate_m3u8, get_ts_list
+from utils.video_utils import generate_m3u8, test_generate_m3u8, get_ts_list, getVideoDpiPath
 
 web_back_api = Blueprint('web_back', __name__, url_prefix='/api/v2/web_back')
 
@@ -361,6 +361,20 @@ def getCourse():
     return jsonify(ret_data(SUCCESS, data=course_list))
 
 
+#上传视频切片处理分辨率选择  xiaojuzi v2 20240126
+@web_back_api.route('/upload/getVideoDpi', methods=['GET'])
+@jwt_required()
+def getVideoDpi():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    video_dpi = ['自动','360P 流畅','480P 清晰','720P 高清','1080P 全高清','原版']
+
+    return jsonify(ret_data(SUCCESS, data=video_dpi))
+
+
 #上传分块前检查分块 xiaojuzi v2 20240105
 #20240118 补充相关校验到这里 逻辑更改 优化用户体验 xiaojuzi v2
 @web_back_api.route('/upload/checkChunk', methods=['POST'])
@@ -374,8 +388,14 @@ def checkChunk():
     fileMd5 = request.form.get('fileMd5', None)
     episode = request.form.get('episode', None)
     file_name = request.form.get('fileName', None)
+    #20240126 视频分辨率上传新增 xiaojuzi v2
+    video_dpi = request.form.get('dpi', None)
 
     if not fileMd5 or not episode or not file_name:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    dpi_path = getVideoDpiPath(video_dpi)
+    if dpi_path is None:
         return jsonify(ret_data(PARAMS_ERROR))
 
     # 分块文件路径
@@ -391,16 +411,17 @@ def checkChunk():
     if not course:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    data = {"episode": episode, "process_video_state": 0}
+    data = {"episode": episode, "process_video_state": 0, "dpi": video_dpi}
 
     #解决多浏览器窗口下重复上传视频问题 xiaojuzi v2 20240118
     if course.process_video_state:
         # 视频处理
         data_list = json.loads(course.process_video_state)
         for video in data_list:
-            if video['episode'] == episode:
+            #增加清晰度 20240126 xiaojuzi v2
+            if video['episode'] == episode and video['dpi'] == video_dpi:
                 if video['process_video_state'] != 3:
-                    return jsonify(ret_data(VIDEO_IS_PROCESSING, data='视频集数已经存在，请勿重复上传！'))
+                    return jsonify(ret_data(VIDEO_IS_PROCESSING, data='视频集数的清晰度已经存在，请勿重复上传！'))
                 else:
                     video['process_video_state'] = 0
                     course.process_video_state = json.dumps(data_list)
@@ -427,9 +448,9 @@ def checkChunk():
 
     course = Course.query.filter_by(id=course_id).first()
 
-    # 秒传逻辑更改 xiaojuzi v2 20240119 从redis中获取key
-    # jwt_redis_blocklist.set(fileMd5.split('-')[0], "", ex=timedelta(days=3))
-    data = jwt_redis_blocklist.get(fileMd5.split('-')[0])
+    # 秒传逻辑更改 xiaojuzi v2 20240119 从redis中获取key 哈希表 dpi为key
+    # jwt_redis_blocklist.hset(fileMd5.split('-')[0], "", "",ex=timedelta(days=3))
+    data = jwt_redis_blocklist.hget(fileMd5.split('-')[0],video_dpi)
     if data:
         # 更新过期时间 20240123 xiaojuzi v2
         jwt_redis_blocklist.expire(fileMd5.split('-')[0],7 * 24 * 60 * 60)
@@ -441,40 +462,48 @@ def checkChunk():
         data = json.loads(data)
         if course.video_files:
             data_list = json.loads(course.video_files)
-            temp = {"video_base_url": data['video_base_url'], "video_ts_list": data['video_ts_list'], "episode": episode}
+            temp = {"video_base_url": data['video_base_url'], "video_ts_list": data['video_ts_list'],
+                    "episode": episode, "dpi": video_dpi}
             data_list.append(temp)
             course.video_files = json.dumps(data_list)
 
         else:
             temp = {"video_base_url": data['video_base_url'], "video_ts_list": data['video_ts_list'],
-                    "episode": episode}
+                    "episode": episode, "dpi": video_dpi}
             course.video_files = json.dumps([temp])
 
         if course.process_video_path:
             # 新增逻辑 获取key必须要的路径 update by xiaojuzi v2 20240117
             data_list1 = json.loads(course.process_video_path)
-            data1 = {"process_video_path": data['process_video_path'], "episode": episode}
+            data1 = {"process_video_path": data['process_video_path'], "episode": episode,
+                     "dpi": video_dpi}
             data_list1.append(data1)
             course.process_video_path = json.dumps(data_list1)
         else:
-            data1 = {"process_video_path": data['process_video_path'], "episode": episode}
+            data1 = {"process_video_path": data['process_video_path'], "episode": episode,
+                     "dpi": video_dpi}
             course.process_video_path = json.dumps([data1])
 
         if course.process_video_state:
             data_list2 = json.loads(course.process_video_state)
             for video in data_list2:
-                if video['episode'] == episode:
+                if video['episode'] == episode and video['dpi'] == video_dpi:
                     video['process_video_state'] = 2
                     course.process_video_state = json.dumps(data_list2)
                     break
+        else:
+            temp = {"episode": episode, "process_video_state": 2, "dpi": video_dpi}
+            course.process_video_state = json.dumps([temp])
 
         db.session.commit()
         return jsonify(ret_data(VIDEO_UPLOAD_FAST_SUCCESS))
 
     try:
         #临时逻辑 防止碎片干扰合并不成功 20240117 xiaojuzi v2
-        if os.path.exists(save_video_folder):
-            shutil.rmtree(save_video_folder)
+
+        clear_folder = save_video_folder + f'/{dpi_path}'
+        if os.path.exists(clear_folder):
+            shutil.rmtree(clear_folder)
 
         # result = check_chunk_exist(fileMd5,save_video_folder)
 
@@ -502,8 +531,14 @@ def uploadChunk():
     files = request.files.get('chunk')
     fileMd5 = request.form.get('fileMd5', None)
     file_name = request.form.get('fileName', None)
+    #20240126 视频分辨率上传新增 xiaojuzi v2
+    video_dpi = request.form.get('dpi', None)
 
     if not fileMd5 or not file_name:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    dpi_path = getVideoDpiPath(video_dpi)
+    if dpi_path is None:
         return jsonify(ret_data(PARAMS_ERROR))
 
     # course_id = request.form.get('course_id', None)
@@ -530,7 +565,7 @@ def uploadChunk():
             chunkFilePathFolder = os.path.dirname(getFilePathByMd5(file_md5, extension))
 
             # print(chunkFilePath)
-            save_video_folder = static_folder + f'/video/{chunkFilePathFolder}'
+            save_video_folder = static_folder + f'/video/{chunkFilePathFolder}/{dpi_path}'
 
             video_chunk_path = os.path.join(save_video_folder, fileMd5).replace('\\', '/')
             # print(video_chunk_path)
@@ -561,7 +596,6 @@ def uploadChunk():
 def mergeChunks():
 
     current_user = get_jwt_identity()
-
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
@@ -570,7 +604,15 @@ def mergeChunks():
     chunkTotal = request.form.get('chunkTotal', None)
     episode = request.form.get('episode', None)
 
+    # 20240126 视频分辨率上传新增 xiaojuzi v2
+    video_dpi = request.form.get('dpi', None)
+
+
     if not fileMd5 or not file_name or not chunkTotal or not episode:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    dpi_path = getVideoDpiPath(video_dpi)
+    if dpi_path is None:
         return jsonify(ret_data(PARAMS_ERROR))
 
     course_id = request.form.get('courseId', None)
@@ -586,7 +628,7 @@ def mergeChunks():
 
     chunkFilePathFolder = os.path.dirname(getFilePathByMd5(fileMd5, extension))
 
-    save_video_folder = static_folder + f'/video/{chunkFilePathFolder}'
+    save_video_folder = static_folder + f'/video/{chunkFilePathFolder}/{dpi_path}'
 
     video_path = os.path.join(save_video_folder, file_name).replace('\\', '/')
 
@@ -623,7 +665,7 @@ def mergeChunks():
 
         # 创建后台进程来处理视频任务 20240109 xiaojuzi v2
         timer_thread = threading.Timer(5, process_mp4_video,
-                                           args=(video_path, course_id, episode,chunkFilePathFolder))
+                                           args=(video_path, course_id, episode,video_dpi,f'/video/{chunkFilePathFolder}/{dpi_path}'))
         timer_thread.start()
 
         # 视频处理中 逻辑修改20240119 xiaojuzi v2
@@ -632,33 +674,37 @@ def mergeChunks():
         if course.process_video_path:
             data_list = json.loads(course.process_video_path)
             for video in data_list:
-                if video['episode'] == episode:
+                if video['episode'] == episode and video['dpi'] == video_dpi:
                     video['process_video_path'] = video_path
                     course.process_video_path = json.dumps(data_list)
                     break
             else:
-                data = {"process_video_path": video_path, "episode": episode}
+                data = {"process_video_path": video_path, "episode": episode,"dpi": video_dpi}
                 data_list.append(data)
                 # new_data = course.process_video_path + "," + json.dumps(data)
                 course.process_video_path = json.dumps(data_list)
                 # print(course.process_video_path)
 
         else:
-            data = {"process_video_path": video_path, "episode": episode}
+            data = {"process_video_path": video_path, "episode": episode,"dpi": video_dpi}
             course.process_video_path = json.dumps([data])
 
             # print(course.process_video_path)
 
-        data_list1 = json.loads(course.process_video_state)
-        for video in data_list1:
-            if video['episode'] == episode:
-                video['process_video_state'] = 1
+        if course.process_video_state:
+            data_list1 = json.loads(course.process_video_state)
+            for video in data_list1:
+                if video['episode'] == episode and video['dpi'] == video_dpi:
+                    video['process_video_state'] = 1
+                    course.process_video_state = json.dumps(data_list1)
+                    break
+            else:
+                data = {"episode": episode, "process_video_state": 1,"dpi": video_dpi}
+                data_list1.append(data)
                 course.process_video_state = json.dumps(data_list1)
-                break
         else:
-            data = {"episode": episode, "process_video_state": 1}
-            data_list1.append(data)
-            course.process_video_state = json.dumps(data_list1)
+            data = {"episode": episode, "process_video_state": 1,"dpi": video_dpi}
+            course.process_video_state = json.dumps([data])
 
         db.session.commit()
 
@@ -905,19 +951,19 @@ def merge_blobs_to_video(directory,video_path,chunkTotal):
             logging.info('清理临时分块文件失败：'+str(e))
 
 
+
 #根据MD5和文件扩展名，生成文件路径 xiaojuzi v2 20240105
 def getFilePathByMd5(fileMd5: str,extension: str):
 
     return f"{fileMd5[0:1]}/{fileMd5[1:2]}/{fileMd5}/{fileMd5}+'.'+{extension}"
 
 
-
 #处理mp4视频将其切片且加密并上传到OSS xiaojuzi v2 20240105 逻辑修改20240119 xiaojuzi v2
-def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
+def process_mp4_video(video_path,course_id,episode,video_dpi,chunkFilePathFolder):
 
     with app.app_context():
         # print('已经开始视频处理')
-        logging.info('开始视频处理,课程id：%s，集数：%s'%(course_id,episode))
+        logging.info('开始视频处理,课程id：%s，集数：%s,分辨率：%s'%(course_id,episode,video_dpi))
         save_video_folder = os.path.dirname(video_path)
 
         # 将视频切片在上传 20240103
@@ -925,7 +971,7 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
         ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
 
         # result, ts_list = generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
-        result, ts_list = test_generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder)
+        result, ts_list = test_generate_m3u8(ffmpeg_path, ffprobe_path, video_path, save_video_folder,video_dpi)
 
         # print(result)
         # print(ts_list)
@@ -934,12 +980,12 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
             #视频处理出错
             data_list = json.loads(course.process_video_state)
             for video in data_list:
-                if video['episode'] == episode:
+                if video['episode'] == episode and video['dpi'] == video_dpi:
                     video['process_video_state'] = 3
                     course.process_video_state = json.dumps(data_list)
                     break
             else:
-                data = {"episode": episode, "process_video_state": 3}
+                data = {"episode": episode, "process_video_state": 3,"dpi" : video_dpi}
                 data_list.append(data)
                 course.process_video_state = json.dumps(data_list)
 
@@ -963,13 +1009,13 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
                         # 视频处理出错
                         data_list = json.loads(course.process_video_state)
                         for video in data_list:
-                            if video['episode'] == episode:
+                            if video['episode'] == episode and video['dpi'] == video_dpi:
                                 if video['process_video_state'] != 4:
                                     video['process_video_state'] = 4
                                     course.process_video_state = json.dumps(data_list)
                                 break
                         else:
-                            data = {"episode": episode, "process_video_state": 4}
+                            data = {"episode": episode, "process_video_state": 4,"dpi" : video_dpi}
                             data_list.append(data)
                             course.process_video_state = json.dumps(data_list)
                     else:
@@ -994,13 +1040,13 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
                     # 视频处理出错
                     data_list = json.loads(course.process_video_state)
                     for video in data_list:
-                        if video['episode'] == episode:
+                        if video['episode'] == episode and video['dpi'] == video_dpi:
                             if video['process_video_state'] != 4:
                                 video['process_video_state'] = 4
                                 course.process_video_state = json.dumps(data_list)
                             break
                     else:
-                        data = {"episode": episode, "process_video_state": 4}
+                        data = {"episode": episode, "process_video_state": 4,"dpi" : video_dpi}
                         data_list.append(data)
                         course.process_video_state = json.dumps(data_list)
                 else:
@@ -1024,11 +1070,12 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
             # temp = video_url + "," + f"http://{oss_bucket_name}.oss-cn-wuhan-lr.aliyuncs.com/{file_name}"
             # video_url_new = video_resource_encrypt(temp)
             # course.video_url = video_url_new
-            temp = f"http://{oss_bucket_name}.oss-cn-wuhan-lr.aliyuncs.com/{chunkFilePathFolder}"
+            #新增cdn 20240126 xiaojuzi v2
+            temp = f"{cdn_oss_url}/{chunkFilePathFolder}"
             # 指切片从0-len(ts_list)
             data_list = json.loads(course.video_files)
             for video in data_list:
-                if video['episode'] == episode:
+                if video['episode'] == episode and video['dpi'] == video_dpi:
                     video['video_base_url'] = temp
                     video['video_ts_list'] = len(ts_list)
                     course.video_files = json.dumps(data_list)
@@ -1037,7 +1084,8 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
                     cache_data['video_ts_list'] = len(ts_list)
                     break
             else:
-                data = {"video_base_url": temp, "video_ts_list": len(ts_list), "episode": episode}
+                data = {"video_base_url": temp, "video_ts_list": len(ts_list),
+                        "episode": episode,"dpi": video_dpi}
                 # new_data = course.video_files + "," + json.dumps(data)
                 data_list.append(data)
                 course.video_files = json.dumps(data_list)
@@ -1046,8 +1094,9 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
                 cache_data['video_ts_list'] = len(ts_list)
         else:
             # 第一次上传视频文件
-            temp = f"http://{oss_bucket_name}.oss-cn-wuhan-lr.aliyuncs.com/{chunkFilePathFolder}"
-            data = {"video_base_url": temp, "video_ts_list": len(ts_list),"episode": episode}
+            temp = f"{cdn_oss_url}/{chunkFilePathFolder}"
+            data = {"video_base_url": temp, "video_ts_list": len(ts_list),
+                    "episode": episode,"dpi" : video_dpi}
             # data_str = '[' + data + ']'
             course.video_files = json.dumps([data])
 
@@ -1061,25 +1110,26 @@ def process_mp4_video(video_path,course_id,episode,chunkFilePathFolder):
         #更改视频处理状态
         data_list1 = json.loads(course.process_video_state)
         for video in data_list1:
-            if video['episode'] == episode:
+            if video['episode'] == episode and video['dpi'] == video_dpi:
                 video['process_video_state'] = 2
                 course.process_video_state = json.dumps(data_list1)
                 break
         else:
-            data = {"episode": episode, "process_video_state": 2}
+            data = {"episode": episode, "process_video_state": 2,"dpi": video_dpi}
             data_list1.append(data)
             course.process_video_state = json.dumps(data_list1)
         # course.process_video_state = 2
 
         data_list2 = json.loads(course.process_video_path)
         for video in data_list2:
-            if video['episode'] == episode:
+            if video['episode'] == episode and video['dpi'] == video_dpi:
                 cache_data['process_video_path'] = video['process_video_path']
 
         db.session.commit()
 
         #都完成存储到redis中作为全后台秒传缓存
-        jwt_redis_blocklist.set(chunkFilePathFolder.split('/')[-1], json.dumps(cache_data), ex=timedelta(days=7))
+        jwt_redis_blocklist.hset(chunkFilePathFolder.split('/')[-2],video_dpi,json.dumps(cache_data))
+        jwt_redis_blocklist.expire(chunkFilePathFolder.split('/')[-2],timedelta(days=7))
 
         # print(course.video_url)
         # print(f"http://{oss_bucket_name}.oss-cn-wuhan-lr.aliyuncs.com/{file_name}")
@@ -1098,6 +1148,12 @@ def getVideoKey():
     if not episode:
         return jsonify(ret_data(PARAMS_ERROR))
 
+    video_dpi = request.form.get('dpi', None)
+
+    dpi_path = getVideoDpiPath(video_dpi)
+    if dpi_path is None:
+        return jsonify(ret_data(PARAMS_ERROR))
+
     course_id = request.form.get('courseId', None)
     course = Course.query.filter_by(id=course_id).first()
 
@@ -1113,20 +1169,20 @@ def getVideoKey():
     process_video_path = None
 
     for data_dict in data_list:
-        if "episode" in data_dict and data_dict['episode'] == str(episode):
+        if "episode" in data_dict and data_dict['episode'] == str(episode) and data_dict['dpi'] == video_dpi:
             process_video_path = data_dict['process_video_path']
             break
 
     if not process_video_path:
         return jsonify(ret_data(COURSE_UNBIND_VIDEO))
 
-    fileMd5 = process_video_path.split('/')[-2]
+    fileMd5 = process_video_path.split('/')[-3]
     # print(fileMd5)
 
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static').replace(
         '\\', '/')
 
-    key_path = f'video/{str(fileMd5[0:1])}/{fileMd5}/keyinfo.txt'
+    key_path = f'video/{str(fileMd5[0:1])}/{fileMd5}/{dpi_path}/keyinfo.txt'
     key = os.path.join(static_folder, key_path).replace('\\', '/')
 
     if not os.path.exists(key):
@@ -1135,7 +1191,7 @@ def getVideoKey():
     with open(key, 'r') as f:
         keyinfo = f.read().splitlines()
 
-    encrypt_path = HOST + f'/video/{str(fileMd5)[0:1]}/{fileMd5}/encrypt.key'
+    encrypt_path = HOST + f'/video/{str(fileMd5)[0:1]}/{fileMd5}/{dpi_path}/encrypt.key'
 
     return jsonify(ret_data(SUCCESS, data={
         'iv': keyinfo[2],
@@ -1172,6 +1228,7 @@ def getCourseVideoListByCourseId():
     if course.process_video_state:
         data = {"video_base_url": "",
                 "episode": "",
+                "dpi": "",
                 "video_ts_list": "",
                 "process_video_state": ""}
 
@@ -1180,11 +1237,12 @@ def getCourseVideoListByCourseId():
         for state in state_data:
             if video_data:
                 for video in video_data:
-                    if video['episode'] == state['episode']:
+                    if video['episode'] == state['episode'] and video['dpi'] == state['dpi']:
                         data['video_base_url'] = video['video_base_url']
                         data['video_ts_list'] = video['video_ts_list']
                         data['process_video_state'] = state['process_video_state']
                         data['episode'] = state['episode']
+                        data['dpi'] = state['dpi']
                         data_list.append(data)
 
                         # unique_episodes.add(state['episode'])
@@ -1195,11 +1253,13 @@ def getCourseVideoListByCourseId():
                     data['video_ts_list'] = ""
                     data['process_video_state'] = state['process_video_state']
                     data['episode'] = state['episode']
+                    data['dpi'] = state['dpi']
                     data_list.append(data)
 
                 # 清除数据 创建新的字典对象
                 data = {"video_base_url": "",
                         "episode": "",
+                        "dpi": "",
                         "video_ts_list": "",
                         "process_video_state": ""}
 
@@ -1208,15 +1268,17 @@ def getCourseVideoListByCourseId():
                 data['video_ts_list'] = ""
                 data['process_video_state'] = state['process_video_state']
                 data['episode'] = state['episode']
+                data['dpi'] = state['dpi']
                 data_list.append(data)
 
                 # 清除数据 创建新的字典对象
                 data = {"video_base_url": "",
                         "episode": "",
+                        "dpi": "",
                         "video_ts_list": "",
                         "process_video_state": ""}
 
-        sorted_data_list = sorted(data_list, key=lambda x: int(x['episode']))
+        sorted_data_list = sorted(data_list, key=lambda x: (int(x['episode']), int(x['dpi'])))
 
         return jsonify(ret_data(SUCCESS, data=sorted_data_list))
 

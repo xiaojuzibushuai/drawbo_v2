@@ -78,8 +78,116 @@ def get_video_duration(ffprobe_path,input_file):
         # print(e)
         return 0
 
+
+
+#根据dpi获取视频分辨率路径 xiaojuzi v2 20240126
+def getVideoDpiPath(dpi):
+
+    path = None
+    if int(dpi) == 0:
+        path = 'auto'
+    elif int(dpi) == 1:
+        path = '360p'
+    elif int(dpi) == 2:
+        path = '480p'
+    elif int(dpi) == 3:
+        path = '720p'
+    elif int(dpi) == 4:
+        path = '1080p'
+    elif int(dpi) == 5:
+        path = 'original'
+
+    return path
+
+#20240126 xiaojuzi v2 自定义切片参数 根据码率参数
+def getVideoCommand(video_dpi,ffmpeg_path,video_path,cpu_count,keyinfo,m3u8folder_path,encrypted_m3u8_name):
+
+    dpi_path = getVideoDpiPath(video_dpi)
+
+    default_command = [
+            ffmpeg_path,
+            '-i', video_path,
+            '-c:v', 'libx264',  # 对视频编码
+            '-c:a', 'aac',  # 对音频编码
+            '-s', '640x360',  # 输出视频分辨率
+            '-pix_fmt', 'yuv420p',  # 输出视频像素格式
+            '-b:a', '128k',  # 音频比特率
+            '-b:v', '800k',  # 视频比特率
+            '-r', '30',  # 输出视频帧率
+            '-hls_key_info_file', keyinfo,  # 秘钥文件
+            '-f', 'hls',  # 生成hls
+            '-hls_time', '5',  # 切片变小
+            '-hls_list_size', '0',  # 设置hls播放列表
+            '-threads', str(cpu_count),  # 多处理器
+            '-hls_playlist_type', 'vod',  # 点播
+            '-force_key_frames', 'expr:gte(t,n_forced*1)',  # 添加强制关键帧参数
+            '-hls_segment_filename', os.path.join(m3u8folder_path, f'encrypt_slice_%05d.ts').replace("\\", "/"),
+            '-hls_flags', 'append_list',  # 追加到现有的播放列表
+            os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/")
+        ]
+    if dpi_path == 'auto':
+        command = [
+            ffmpeg_path,
+            '-i', video_path,
+            '-c:v', 'libx264',  # 对视频编码
+            '-c:a', 'aac',  # 对音频编码
+            "-preset", "veryfast",  # 选择编码速度为非常快的预设
+            "-tune", "zerolatency",  # 使用zerolatency调整参数，以减少编码延迟
+            # "-g", "48",  # 关键帧间隔
+            # "-sc_threshold", "0",  # 场景切换阈值 场景切换时立即生成新的关键帧
+            # "-keyint_min", "48",  # 最小关键帧间隔 每个清晰度层级都有足够的关键帧
+            "-b:v", "2000k", "-vf", "scale=1280:720",
+            "-minrate:v", "1000k",
+            "-maxrate:v", "4000k",  # 最大比特率 网络不够稳定就小点
+            "-bufsize:v", "4000k",  # 码率缓冲区
+            '-b:a', '128k',  # 音频比特率
+            '-hls_key_info_file', keyinfo,  # 秘钥文件
+            '-f', 'hls',  # 生成hls
+            '-hls_time', '4',  # 切片变小
+            '-hls_list_size', '0',  # 设置hls播放列表
+            '-threads', str(cpu_count),  # 多处理器
+            '-hls_playlist_type', 'vod',  # 点播
+            '-hls_segment_filename', os.path.join(m3u8folder_path, f'encrypt_slice_%05d.ts').replace("\\", "/"),
+            '-hls_flags', 'append_list',  # 追加到现有的播放列表
+            # "-master_pl_name", os.path.join(m3u8folder_path, 'master.m3u8').replace("\\", "/"),
+            # "-var_stream_map", "v:0,a:0 v:1,a:1 v:2,a:2 v:3,a:3",
+            os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/")
+        ]
+
+        return command
+    elif dpi_path == '360p':
+        return default_command
+    elif dpi_path == '480p':
+        default_command[8] = '854x480'
+        default_command[12] = '128k'
+        default_command[14] = '1500k'
+        return default_command
+    elif dpi_path == '720p':
+        default_command[8] = '1280x720'
+        default_command[12] = '192k'
+        default_command[14] = '2500k'
+        return default_command
+    elif dpi_path == '1080p':
+        default_command[8] = '1920x1080'
+        default_command[12] = '192k'
+        default_command[14] = '5000k'
+        return default_command
+    elif dpi_path == 'original':
+        default_command[4] = 'copy'
+        default_command[6] = 'copy'
+        default_command = [default_command[i] for i in range(len(default_command)) if i < 7 or i > 16]
+
+        return default_command
+    #默认不编码进行复制
+    else:
+        default_command[4] = 'copy'
+        default_command[6] = 'copy'
+        default_command = [default_command[i] for i in range(len(default_command)) if i < 7 or i > 16]
+
+        return default_command
+
 # 一次性加密切片 不会卡顿 20240116 xiaojuzi v2  缺点暂时无法校验时长是否一致
-def test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
+def test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path,video_dpi):
 
     ffmpeg_path = ffmpeg_path.replace('\\', '/')
     ffprobe_path = ffprobe_path.replace('\\', '/')
@@ -87,7 +195,7 @@ def test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
     output_path = output_path.replace('\\', '/')
 
     # 初始化加密key 20240108 xiaojuzi v2
-    keyinfo = init_hls_key(output_path)
+    keyinfo = init_hls_key(output_path,video_dpi)
     if not keyinfo:
         return False, None
 
@@ -105,34 +213,8 @@ def test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
     m3u8folder_path = output_path
     encrypted_m3u8_name = 'encrypted_slice.m3u8'
 
-    # 使用FFmpeg生成M3U8文件
-    command = [
-
-        ffmpeg_path,
-        '-i', video_path,
-        '-c:v', 'libx264',  # 对视频编码
-        # '-c:v', 'copy',  # 对视频编码
-        '-c:a', 'copy',  # 对音频复制
-        # '-i', video_path,
-        '-s', '1920x1080',  # 输出视频分辨率 720p HD：1280x720  1080p 1920x1080 4K 3840x2160
-        '-pix_fmt', 'yuv420p',  # 输出视频像素格式
-        '-b:a', '128k',  # 音频比特率
-        '-b:v', '5000k',  # 视频比特率
-        '-r', '30',  # 输出视频帧率
-        # '-c', 'copy',
-        # '-hls_key_info_file', 'keyinfo.txt',  # 秘钥文件
-        '-hls_key_info_file', keyinfo,  # 秘钥文件
-        '-f', 'hls',  # 生成hls
-        # '-hls_time', str(ts_duration),
-        '-hls_time', '5', #切片变小
-        '-hls_list_size', '0',  # 设置hls播放列表
-        '-threads', str(cpu_count),  # 多处理器
-        '-hls_playlist_type', 'vod',  # 点播
-        '-force_key_frames', 'expr:gte(t,n_forced*1)',  # 添加强制关键帧参数
-        '-hls_segment_filename', os.path.join(m3u8folder_path, f'encrypt_slice_%05d.ts').replace("\\", "/"),
-        '-hls_flags', 'append_list',  # 追加到现有的播放列表
-        os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/")
-    ]
+    # 使用FFmpeg生成M3U8文件 获取对应分辨率参数
+    command = getVideoCommand(video_dpi,ffmpeg_path,video_path,cpu_count,keyinfo,m3u8folder_path,encrypted_m3u8_name)
 
     try:
         subprocess.run(command, check=True)
@@ -317,12 +399,14 @@ def generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path):
     return True,ts_list1
 
 #初始化视频hls切片密钥 xiaojuzi 20240105
-def init_hls_key(output_path):
+def init_hls_key(output_path,video_dpi):
 
-    temp = output_path.split('/')[-1]
+    dpi_path = getVideoDpiPath(video_dpi)
+
+    temp = output_path.split('/')[-2]
     # print(temp)
 
-    key_path = os.path.dirname(os.path.dirname(output_path)) + f'/{temp}'
+    key_path = os.path.dirname(os.path.dirname(os.path.dirname(output_path))) + f'/{temp}/{dpi_path}'
     # print(key_path)
 
     keyinfo = os.path.join(key_path, 'keyinfo.txt').replace("\\", "/")
@@ -441,14 +525,15 @@ if __name__ == '__main__':
     ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
     ffprobe_path = 'D:\\桌面\\ffmpeg\\ffprobe.exe'
     ffplay_path = 'D:\\桌面\\ffmpeg\\ffplay.exe'
-    video_path = './2.mp4'
-    output_path = './temp_video_output'
-    target = './temp_video_output/slice.m3u8'
-    target1 = './temp_video_output/encrypted_slice.m3u8'
+    video_path = './1.mp4'
+    output_path = 'E:\\drawbo_v2\\static\\video\\7\\6\\76824e4a0bdc63960f1affa262cc2685\\original'
+    # target = './temp_video_output/slice.m3u8'
+    # target1 = './temp_video_output/encrypted_slice.m3u8'
     # generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path)
-    keyinfo = 'E:\\temp_video_output\\keyinfo.txt'
+    # keyinfo = 'E:\\temp_video_output\\keyinfo.txt'
     # decrypt_m3u8(output_path,ffmpeg_path,keyinfo)
-    # test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path)
+    #dpi  :0 auto 1 360P  2 480p 3 720p 4 1080p 5 original
+    test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path,5)
     # check_time = check_video_time(ffprobe_path, video_path,target1)
     # print(check_time)
     # result =get_encrypted_video_duration(ffprobe_path,target1)
