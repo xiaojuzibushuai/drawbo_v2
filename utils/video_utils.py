@@ -84,6 +84,9 @@ def get_video_duration(ffprobe_path,input_file):
 def getVideoDpiPath(dpi):
 
     path = None
+    if not dpi:
+        return None
+
     if int(dpi) == 0:
         path = 'auto'
     elif int(dpi) == 1:

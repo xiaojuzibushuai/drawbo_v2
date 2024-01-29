@@ -396,7 +396,7 @@ def checkChunk():
 
     dpi_path = getVideoDpiPath(video_dpi)
     if dpi_path is None:
-        return jsonify(ret_data(PARAMS_ERROR))
+        return jsonify(ret_data(PARAMS_ERROR,data='选择的dpi暂不支持！'))
 
     # 分块文件路径
     extension = file_name.split('.')[-1]
@@ -539,7 +539,7 @@ def uploadChunk():
 
     dpi_path = getVideoDpiPath(video_dpi)
     if dpi_path is None:
-        return jsonify(ret_data(PARAMS_ERROR))
+        return jsonify(ret_data(PARAMS_ERROR,data='选择的dpi暂不支持！'))
 
     # course_id = request.form.get('course_id', None)
     # course = Course.query.filter_by(id=course_id).first()
@@ -613,7 +613,7 @@ def mergeChunks():
 
     dpi_path = getVideoDpiPath(video_dpi)
     if dpi_path is None:
-        return jsonify(ret_data(PARAMS_ERROR))
+        return jsonify(ret_data(PARAMS_ERROR,data='选择的dpi暂不支持！'))
 
     course_id = request.form.get('courseId', None)
     course = Course.query.filter_by(id=course_id).first()
@@ -665,7 +665,7 @@ def mergeChunks():
 
         # 创建后台进程来处理视频任务 20240109 xiaojuzi v2
         timer_thread = threading.Timer(5, process_mp4_video,
-                                           args=(video_path, course_id, episode,video_dpi,f'/video/{chunkFilePathFolder}/{dpi_path}'))
+                                           args=(video_path, course_id, episode,video_dpi,f'{chunkFilePathFolder}/{dpi_path}'))
         timer_thread.start()
 
         # 视频处理中 逻辑修改20240119 xiaojuzi v2
@@ -985,7 +985,7 @@ def process_mp4_video(video_path,course_id,episode,video_dpi,chunkFilePathFolder
                     course.process_video_state = json.dumps(data_list)
                     break
             else:
-                data = {"episode": episode, "process_video_state": 3,"dpi" : video_dpi}
+                data = {"episode": episode, "process_video_state": 3,"dpi": video_dpi}
                 data_list.append(data)
                 course.process_video_state = json.dumps(data_list)
 
@@ -1124,6 +1124,7 @@ def process_mp4_video(video_path,course_id,episode,video_dpi,chunkFilePathFolder
         for video in data_list2:
             if video['episode'] == episode and video['dpi'] == video_dpi:
                 cache_data['process_video_path'] = video['process_video_path']
+                break
 
         db.session.commit()
 
@@ -1152,7 +1153,7 @@ def getVideoKey():
 
     dpi_path = getVideoDpiPath(video_dpi)
     if dpi_path is None:
-        return jsonify(ret_data(PARAMS_ERROR))
+        return jsonify(ret_data(PARAMS_ERROR,data='选择的dpi暂不支持！'))
 
     course_id = request.form.get('courseId', None)
     course = Course.query.filter_by(id=course_id).first()
@@ -1278,7 +1279,7 @@ def getCourseVideoListByCourseId():
                         "video_ts_list": "",
                         "process_video_state": ""}
 
-        sorted_data_list = sorted(data_list, key=lambda x: (int(x['episode']), int(x['dpi'])))
+        sorted_data_list = sorted(data_list, key=lambda x: (int(x['episode']), -int(x['dpi'])))
 
         return jsonify(ret_data(SUCCESS, data=sorted_data_list))
 
@@ -1539,6 +1540,12 @@ def deleteVideoByCourseId():
     if not course:
         return jsonify(ret_data(PARAMS_ERROR))
 
+    video_dpi = request.form.get('dpi', None)
+
+    dpi_path = getVideoDpiPath(video_dpi)
+    if dpi_path is None:
+        return jsonify(ret_data(PARAMS_ERROR,data='选择的dpi暂不支持！'))
+
     data_list = None
     data_list1 = None
 
@@ -1551,7 +1558,7 @@ def deleteVideoByCourseId():
 
     if data_list1:
         for data1 in data_list1:
-            if data1['episode'] == episode:
+            if data1['episode'] == episode and data1['dpi'] == video_dpi:
                 data_list1.remove(data1)
                 flag = False
                 if len(data_list1) == 0:
@@ -1562,7 +1569,7 @@ def deleteVideoByCourseId():
 
     if data_list:
         for data in data_list:
-            if data['episode'] == episode:
+            if data['episode'] == episode and data['dpi'] == video_dpi:
                 # folder = data['video_base_url'].split('/')[-1]
                 # print(folder)
                 # delete_folder(folder)
@@ -1587,7 +1594,7 @@ def deleteVideoByCourseId():
         data_list2 = json.loads(course.process_video_path)
     if data_list2:
         for data in data_list2:
-            if data['episode'] == episode:
+            if data['episode'] == episode and data['dpi'] == video_dpi:
                 # folder = '/'.join(data['process_video_path'].split('/')[:-1])
                 # print(folder)
                 # shutil.rmtree(folder)
@@ -1624,10 +1631,17 @@ def restartUploadVideoByCourseId():
     if not course:
         return jsonify(ret_data(PARAMS_ERROR))
 
+    video_dpi = request.form.get('dpi', None)
+
+    dpi_path = getVideoDpiPath(video_dpi)
+    if dpi_path is None:
+        return jsonify(ret_data(PARAMS_ERROR,data='选择的dpi暂不支持！'))
+
+
     if course.process_video_path:
         data_list = json.loads(course.process_video_path)
         for data in data_list:
-            if data['episode'] == episode:
+            if data['episode'] == episode and data['dpi'] == video_dpi:
                 folder = "/".join(data['process_video_path'].split('/')[:-1])
                 path = os.path.join(folder,'upload_file.txt').replace('\\','/')
                 temp =data['process_video_path'].split('/')[-1]
@@ -1673,7 +1687,7 @@ def restartUploadVideoByCourseId():
                 if flag:
                     data_list = json.loads(course.process_video_state)
                     for video in data_list:
-                        if video['episode'] == episode:
+                        if video['episode'] == episode and video['dpi'] == video_dpi:
                             video['process_video_state'] = 2
                             course.process_video_state = json.dumps(data_list)
                             db.session.commit()
