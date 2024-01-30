@@ -24,15 +24,18 @@ from flask_jwt_extended import JWTManager, create_access_token, create_refresh_t
 from sqlalchemy import func, cast, Integer
 
 from api.auth import jwt_redis_blocklist
-from api.miniprogram import validate_phone_number, generate_nickname, sendSms, validate_password, getDeviceByOpenid
+from api.miniprogram import validate_phone_number, generate_nickname, sendSms, validate_password, getDeviceByOpenid, \
+    getUserSceneStrategy
 from api.mqtt import sortDeviceByMaster
 from config import REDIS_HOST, REDIS_DB, REDIS_PORT, oss_access_key_id, oss_access_key_secret, oss_bucket_name, \
     oss_endpoint, ffmpeg_path, ffprobe_path, HOST, JWT_ACCESS_TOKEN_EXPIRES, cdn_oss_url
 from models.course import Category, DeviceCategory, Course, DeviceCourse
 from models.course_audio import CourseAudio
 from models.device import Device
+from models.device_group import DeviceGroup
 from models.sms_send import SmsSend
 from models.user import User
+from models.user_course import User_Course
 from models.user_device import User_Device
 from script.mosquitto_product import send_message
 from sys_utils import app, db
@@ -211,6 +214,7 @@ def getCategory():
 
     """
     web端获取课程类别  v2 xiaojuzi
+    逻辑修改 20240130 xiaojuzi v2
     :return: json
     """
 
@@ -219,89 +223,27 @@ def getCategory():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = current_user['openid']
-
-    # 查询用户已经绑定的设备id
-    devices = User_Device.query.filter_by(userid=openid).all()
-
-    if devices:
-
-        # 过滤条件
-        query_deviceid = db.session.query(User_Device.deviceid).filter(User_Device.userid == openid)
-
-        query_filter=[ Category.index_cate == 1]
-
-        query_filter.append(Device.deviceid.in_(query_deviceid))
-
-        course_query = (db.session.query(
-                Category.id,
-                Category.title,
-                Category.detail,
-                Category.save_path,
-                Category.index_cate,
-                Category.priority,
-                DeviceCategory.lock,
-                Course.id.label('free_course_id'),
-            ).join(
-                DeviceCategory,
-                DeviceCategory.category_id == Category.id
-            ).outerjoin(
-                Course,
-                Course.category_id == Category.id
-            ).filter(*query_filter).group_by(Category.id,DeviceCategory.lock).all())
-
-        # 进行相同id判断为true的留下
-        ids = set()
-        filtered_data = []
-
-        #遍历获取数据id
-        for item in course_query:
-            ids.add(item[0])
-
-        # 遍历只要分类开放的id
-        for item in course_query:
-            if item[0] in ids and not item[6]:
-                filtered_data.append(item)
-                ids.remove(item[0])
-
-        if ids:
-            #将未开放的id 加入
-            for item in course_query:
-                if item[0] in ids:
-                    filtered_data.append(item)
-                    ids.remove(item[0])
-                    if not ids:
-                        break
-
-        #返回列表
-        category_list = model_to_dict(filtered_data)
-
-        category_list = dict_fill_url(category_list, ['save_path'])
-
-    else:
-        # 未绑定设备，也展示类别，但全部锁住
-        cate_objs = db.session.query(
+    #展示全部类别
+    cate_objs = db.session.query(
             Category.id,
             Category.title,
             Category.detail,
             Category.save_path,
             Category.index_cate,
-            Category.priority,
-            Course.id.label('free_course_id'),
-        ).outerjoin(
-            Course, Course.category_id == Category.id
-        ).filter(Category.index_cate == 1).group_by(Category.id).all()
+            Category.priority
+    ).filter(Category.index_cate == 1).group_by(Category.id).all()
 
-        category_list = model_to_dict(cate_objs)
-        category_list = dict_fill_url(category_list, ['save_path'])
+    category_list = model_to_dict(cate_objs)
+    category_list = dict_fill_url(category_list, ['save_path'])
 
-        for cate in category_list:
-            cate['lock'] = True
+    for cate in category_list:
+        cate['lock'] = False
 
     return jsonify(ret_data(SUCCESS, data=category_list))
 
 
 #web端查询课程信息 xiaojuzi
+#逻辑修改 获取课程内容20240130 xiaojuzi v2
 @web_back_api.route('/getCourse', methods=['POST'])
 @jwt_required()
 def getCourse():
@@ -311,7 +253,7 @@ def getCourse():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = current_user['openid']
+    phone = current_user['register_phone']
 
     course_id = request.form.get('course_id', None)
     category_id = request.form.get('category_id', None)
@@ -320,11 +262,10 @@ def getCourse():
     if course_id == 'null':
         course_id = None
 
-    # 累加设备所查询到的课程使用次数
+    # 查询用户可以播放此课程的使用次数
     query_params = [Course.id, Course.title, Course.detail, Course.category_id, Course.img_files,
                     Course.priority, Course.play_time, Course.course_class, Course.volume,
-                    Course.video_files,Course.process_video_state,
-                    cast(func.sum(DeviceCourse.use_count), Integer).label('use_count')]
+                    Course.video_files,User_Course.video_count]
     # 查询条件
     query_filter = [Course.index_show == 1]
 
@@ -337,28 +278,40 @@ def getCourse():
     if course_id:
         query_filter.append(Course.id == int(course_id))
 
-    # 过滤条件
-    query_deviceid = db.session.query(User_Device.deviceid).filter(User_Device.userid == openid)
+    #20240130 为了方便测试将测试分类的课程全部允许播放 不做限制 xiaojuzi
+    #if int(category_id)== 7: 该条件下代码都得删掉 else里面为正确逻辑
+    if int(category_id)== 7:
+        # 执行sql
+        course_query = db.session.query(Course).filter(*query_filter).group_by(Course.title)
 
-    query_filter.append(Device.deviceid.in_(query_deviceid))
+        course_objs = course_query.all()
 
-    # 执行sql
-    course_query = db.session.query(*query_params).join(
-        DeviceCourse, DeviceCourse.course_id == Course.id
-    ).join(
-        Device, Device.id == DeviceCourse.device_id
-    ).filter(*query_filter).group_by(Course.title)
+        if course_objs:
+            course_list = model_to_dict(course_query)
+            course_list = dict_fill_url(course_list, ['img_files'])
+            for cate in course_list:
+                cate['video_count'] = 999
+        else:
+            course_list = []
 
-    course_objs = course_query.all()
-
-    if course_objs:
-        course_list = model_to_dict(course_query)
-        course_list = dict_fill_url(course_list, ['img_files'])
-
+        return jsonify(ret_data(SUCCESS, data=course_list))
     else:
-        course_list = []
 
-    return jsonify(ret_data(SUCCESS, data=course_list))
+        query_filter.append(User_Course.phone == phone)
+        # 执行sql
+        course_query = db.session.query(*query_params).join(
+            User_Course, Course.id == User_Course.courseid
+        ).filter(*query_filter).group_by(Course.title)
+
+        course_objs = course_query.all()
+
+        if course_objs:
+            course_list = model_to_dict(course_query)
+            course_list = dict_fill_url(course_list, ['img_files'])
+        else:
+            course_list = []
+
+        return jsonify(ret_data(SUCCESS, data=course_list))
 
 
 #上传视频切片处理分辨率选择  xiaojuzi v2 20240126
@@ -1287,8 +1240,8 @@ def getCourseVideoListByCourseId():
         return jsonify(ret_data(SUCCESS, data=data_list))
 
 
-
 #预制课发送接口 20231228 xiaojuzi v2
+#待修改 需要前端传递设置的设备  可以为场景id也可以为设备id TODO 20240130
 @web_back_api.route('/push_dat', methods=['POST'])
 @jwt_required()
 def videoAutoPushDatToDevice():
@@ -1694,3 +1647,63 @@ def restartUploadVideoByCourseId():
                             break
 
     return jsonify(ret_data(SUCCESS, data='重新上传视频成功'))
+
+
+
+#web端修改用户课程视频次数信息 20240130 xiaojuzi v2
+@web_back_api.route('/updateCourseVideoCount', methods=['POST'])
+@jwt_required()
+def updateCourseVideoCount():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    phone = current_user['register_phone']
+
+    count = request.form.get('video_count', None)
+
+    courseid = request.form.get('courseid', None)
+
+    if not courseid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    if count:
+        user_course = User_Course.query.filter_by(phone=phone,courseid=courseid).first()
+        user_course.video_count = int(count)
+        db.session.commit()
+        return jsonify(ret_data(SUCCESS, data='该课程视频观看次数修改成功！'))
+
+    return jsonify(ret_data(SUCCESS, data='该课程视频观看次数修改成功！'))
+
+
+#web端添加用户课程视频次数信息 20240130 xiaojuzi v2
+@web_back_api.route('/addCourseVideoCount', methods=['POST'])
+@jwt_required()
+def addCourseVideoCount():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    phone = current_user['register_phone']
+
+    count = request.form.get('video_count', None)
+
+    courseid = request.form.get('courseid', None)
+
+    if not courseid or not count:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+
+    user_course = User_Course.query.filter_by(phone=phone, courseid=courseid).first()
+
+    if user_course:
+        return jsonify(ret_data(PARAMS_ERROR, data='该课程视频次数权限已存在，请直接修改！'))
+
+    user_course = User_Course(phone=phone, courseid=courseid, video_count=int(count))
+    db.session.add(user_course)
+    db.session.commit()
+
+    return jsonify(ret_data(SUCCESS, data='该课程视频观看次数添加成功！'))
+

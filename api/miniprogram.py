@@ -506,6 +506,7 @@ def updateUserDetail():
 
 
 #创建用户场景 xiaojuzi v2 20231211
+
 @miniprogram_api.route('/createScene', methods=['POST'])
 @jwt_required()
 def create_scene():
@@ -516,7 +517,9 @@ def create_scene():
 
     logging.info('createScene api')
 
-    userid = request.form.get('openid',None)
+    # userid = request.form.get('openid',None)
+    # update by xiaojuzi 20240130 修改的通用适配 web端
+    userid = current_user['openid']
 
     scenename = request.form.get('scenename',None)
 
@@ -554,7 +557,9 @@ def updateUserScene():
 
     logging.info('updateUserScene api')
 
-    userid = request.form.get('openid',None)
+    # update by xiaojuzi 20240130 修改的通用适配 web端
+    userid = current_user['openid']
+
     scenename = request.form.get('scenename', None)
     sub_scenename = request.form.get('sub_scenename', None)
 
@@ -583,7 +588,9 @@ def deleteUserScene():
 
     logging.info('deleteUserScene api')
 
-    userid = request.form.get('openid',None)
+    # update by xiaojuzi 20240130 修改的通用适配 web端
+    userid = current_user['openid']
+
     scenename = request.form.get('scenename',None)
     sub_scenename = request.form.get('sub_scenename',None)
 
@@ -686,12 +693,14 @@ def getUserScene():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     logging.info('getUserScene api')
-    userid = request.form.get('openid',None)
 
-    user = User.query.filter_by(openid=userid).first()
+    # update by xiaojuzi 20240130 修改的通用适配 web端
+    userid = current_user['openid']
 
-    if not user:
-        return jsonify(ret_data(USER_NOT_FIND))
+    # user = User.query.filter_by(openid=userid).first()
+    #
+    # if not user:
+    #     return jsonify(ret_data(USER_NOT_FIND))
 
     user_scene = DeviceGroup.query.filter_by(userid=userid).all()
 

@@ -960,7 +960,7 @@ def testMqttPushGirlDataImpl():
 
     push_json = {
         'type': 2,
-        'deviceid': '8c000c6d6004c9221d2',
+        'deviceid': '80023FD00014',
         'fromuser': 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc',
         'message': {
             # arg为文件夹名字  xiaojuzi 20231120
@@ -971,7 +971,7 @@ def testMqttPushGirlDataImpl():
 
     errcode = send_message(push_json)
 
-    return errcode
+    return jsonify(ret_data(errcode))
 
 @mqtt_api.route('/test1MqttPushGirlDataImpl', methods=['POST'])
 #临时接口小女孩吃鸡腿dat xiaojuzi 20231207
@@ -981,7 +981,7 @@ def test1MqttPushGirlDataImpl():
 
     push_json = {
         'type': 2,
-        'deviceid': '8c000c6d6004c9221d2',
+        'deviceid': '80023FD00014',
         'fromuser': 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc',
         'message': {
             # arg为文件夹名字  xiaojuzi 20231120
@@ -992,7 +992,7 @@ def test1MqttPushGirlDataImpl():
 
     errcode = send_message(push_json)
 
-    return errcode
+    return jsonify(ret_data(errcode))
 
 
 #创建初始化lrc文件 xiaojuzi 20231027
