@@ -1649,7 +1649,6 @@ def restartUploadVideoByCourseId():
     return jsonify(ret_data(SUCCESS, data='重新上传视频成功'))
 
 
-
 #web端修改用户课程视频次数信息 20240130 xiaojuzi v2
 @web_back_api.route('/updateCourseVideoCount', methods=['POST'])
 @jwt_required()
@@ -1707,3 +1706,26 @@ def addCourseVideoCount():
 
     return jsonify(ret_data(SUCCESS, data='该课程视频观看次数添加成功！'))
 
+#web端用户播放课程视频次数减少 20240131 xiaojuzi v2
+@web_back_api.route('/updateCourseVideoByCourseId', methods=['POST'])
+@jwt_required()
+def updateCourseVideoByCourseId():
+
+    current_user = get_jwt_identity()
+
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    phone = current_user['register_phone']
+
+    courseid = request.form.get('courseid', None)
+
+    if not courseid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user_course = User_Course.query.filter_by(phone=phone, courseid=courseid).first()
+    user_course.video_count -= 1
+
+    db.session.commit()
+
+    return jsonify(ret_data(SUCCESS, data='该课程视频观看次数减少成功！'))
