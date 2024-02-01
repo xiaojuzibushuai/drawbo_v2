@@ -43,7 +43,7 @@ from utils.OSSUploader import upload_file, bucket, delete_folder
 from utils.error_code import PARAMS_ERROR, PHONE_NUMBER_ERROR, PHONE_NOT_FIND, SUCCESS, PASSWORD_ERROR, SMS_SEND_ERROR, \
     USER_NOT_FIND, UNAUTHORIZED_ACCESS, VIDEO_UPLOAD_FAILED, SMS_CODE_ERROR, SMS_CODE_EXPIRE, \
     VIDEO_UPLOAD_NAME_REPEATED, DEVICE_NOT_FIND, VIDEO_FORMAT_ERROR, CHUNK_UPLOAD_EXIST, COURSE_UNBIND_VIDEO, \
-    VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT, VIDEO_UPLOAD_FAST_SUCCESS, VIDEO_IS_PROCESSING
+    VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT, VIDEO_UPLOAD_FAST_SUCCESS, VIDEO_IS_PROCESSING, SCENE_ERROR
 from utils.tools import ret_data, check_password, getUserIp, model_to_dict, dict_fill_url, get_location_by_ip, \
     video_resource_decrypt, video_resource_encrypt, paginate_data
 from utils.video_utils import generate_m3u8, test_generate_m3u8, get_ts_list, getVideoDpiPath
@@ -1241,7 +1241,7 @@ def getCourseVideoListByCourseId():
 
 
 #预制课发送接口 20231228 xiaojuzi v2
-#待修改 需要前端传递设置的设备  可以为场景id也可以为设备id TODO 20240130
+#待修改 需要前端传递设置的设备  定为场景id方便管理 20240131
 @web_back_api.route('/push_dat', methods=['POST'])
 @jwt_required()
 def videoAutoPushDatToDevice():
@@ -1251,20 +1251,15 @@ def videoAutoPushDatToDevice():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     url = request.form.get('url', None)
+    sceneid = request.form.get('sceneid')
 
-    if not url:
+    if not url or not sceneid:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    # TODO 之前逻辑 updateby xiaojuzi v2 20240124
-    # base_url = "/".join(url.split("/")[:-1])
-    # arg = url.split('/')[-1].split('.')[0]
-    #
-    # if not arg or not url:
-    #     return jsonify(ret_data(PARAMS_ERROR))
-
+    #updateby xiaojuzi v2 20240131
     openid = current_user['openid']
 
-    device_list = sortDeviceByMaster(openid)
+    device_list = getDeviceListBySceneId(sceneid)
 
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
@@ -1729,3 +1724,28 @@ def updateCourseVideoByCourseId():
     db.session.commit()
 
     return jsonify(ret_data(SUCCESS, data='该课程视频观看次数减少成功！'))
+
+
+#根据用户选择的场景id给该用户场景下的画小宇设备进行视频交互 20240131 xiaojuzi
+def getDeviceListBySceneId(sceneid) -> list:
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+
+    if not user_scene:
+        return None
+
+    # 查询用户在此场景下的设备id
+    devices = User_Device.query.filter_by(userid=user_scene.userid, sceneid=user_scene.id).all()
+
+    if not devices:
+        return None
+
+    device_list = []
+
+    for device in devices:
+        device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
+        if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+            device_list.append(device1)
+
+    return device_list
