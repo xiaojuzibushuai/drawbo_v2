@@ -1241,7 +1241,7 @@ def getCourseVideoListByCourseId():
 
 
 #预制课发送接口 20231228 xiaojuzi v2
-#待修改 需要前端传递设置的设备  定为场景id方便管理 20240131
+# 需要前端传递设置的设备  定为场景id方便管理 20240131
 @web_back_api.route('/push_dat', methods=['POST'])
 @jwt_required()
 def videoAutoPushDatToDevice():

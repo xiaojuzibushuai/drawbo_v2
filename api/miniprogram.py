@@ -190,6 +190,7 @@ def getUserDetailByWX():
 # @decorator_sign
 def loginByPassword():
 
+
     register_phone = request.form.get('register_phone', None)
 
     password = request.form.get('password')
@@ -240,6 +241,7 @@ def loginByPassword():
 
 
 #用户手机号验证码登录注册一体接口 xiaojuzi v2 20231129
+#20240201 xiaojuzi v2 去掉openid的依赖性
 @miniprogram_api.route('/auth/register', methods=['POST'])
 # @decorator_sign
 def register():
@@ -296,12 +298,12 @@ def register():
                 #兼容v1版本的默认注册 xiaojuzi v2 20231129
                 user1 = User.query.filter_by(openid=openid).first()
                 if user1:
-                    #（20231215暂时这样待修改）
-                    if user1.register_phone:
-                        if user1.register_phone!= register_phone:
-                            return jsonify(ret_data(PHONE_IS_NOT_MATCH))
-                    else:
-                        user1.register_phone = register_phone
+                    # #（20231215暂时这样待修改）
+                    # if user1.register_phone:
+                    #     if user1.register_phone!= register_phone:
+                    #         return jsonify(ret_data(PHONE_IS_NOT_MATCH))
+                    # else:
+                    #     user1.register_phone = register_phone
 
                     # if not user1.register_phone:
                     #     user1.register_phone = register_phone
@@ -313,6 +315,7 @@ def register():
                     user1.login_count += 1
                     user1.uptime = datetime.now()
                     user1.ip = getUserIp()
+                    user1.register_phone = register_phone
 
                     user2 = model_to_dict(user1)
                     db.session.commit()
@@ -370,7 +373,9 @@ def getUserInfo():
     #就是令牌所存储进去的信息
     # print(current_user)
 
-    userid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    userid = current_user['openid']
+    # userid = request.form.get('openid', None)
 
     user = User.query.filter_by(openid=userid).first()
 
@@ -474,7 +479,10 @@ def updateUserDetail():
 
     logging.info('updateUserDetail api')
 
-    openid = request.form.get('openid',None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
+    # openid = request.form.get('openid',None)
+
     nickname = request.form.get('nickname',None)
 
     user = User.query.filter_by(openid=openid).first()
@@ -1265,7 +1273,9 @@ def userSceneShareBindDevice():
 
     device_share_code = request.form.get('device_share_code', None)
 
-    userid = request.form.get('openid',None)
+    # 20240201 xiaojuzi v2 去掉openid的依赖性
+    userid = current_user['openid']
+    # userid = request.form.get('openid',None)
 
     if not device_share_code or not userid:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -1360,7 +1370,9 @@ def getUserSceneShareCodeList():
 
     logging.info('getUserSceneShareCodeList api')
 
-    userid = request.form.get('openid')
+    # userid = request.form.get('openid')
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    userid = current_user['openid']
 
     if not userid:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -1518,7 +1530,10 @@ def deleteUserSceneShareCodeBindUser():
 
     logging.info('deleteUserSceneShareCodeBindUser api')
     share_userid = request.form.get('share_userid')
-    userid = request.form.get('userid')
+
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    userid = current_user['openid']
+
     if not share_userid or not userid:
         return jsonify(ret_data(PARAMS_ERROR))
 
@@ -1549,7 +1564,10 @@ def cancelUserAccount():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
     logging.info('cancelUserAccount api')
 
-    openid = request.form.get('openid')
+    # openid = request.form.get('openid')
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
+
     phone = request.form.get('register_phone')
 
     user = User.query.filter(or_(User.openid==openid,User.register_phone==phone)).first()
@@ -1728,7 +1746,9 @@ def multi_device_manage():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
 
     #20231113 xiaojuzi v2 分组逻辑新增
     # groupid = request.form.get('groupid', 1)
@@ -1889,7 +1909,9 @@ def update_devicname():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
 
     deviceid = request.form.get('deviceid', None)
@@ -1921,7 +1943,7 @@ def get_wakeword():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     #前台需要嵌套数组
-    data = [['小芳', '小花', '小凯','小丽','小智','小季','小爱','小黑','小磊','小美','小皮','小太','小妖','小源','小紫']]
+    data = [['玲玲','花花','儿子','乖儿子','小芳', '小花', '小凯','小丽','小智','小季','小爱','小黑','小磊','小美','小皮','小太','小妖','小源','小紫']]
 
     return jsonify(ret_data(SUCCESS, data=data))
 
@@ -1936,7 +1958,9 @@ def getDevicebyId():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     #获取url参数
-    openid = request.args.get('openid', None)
+    # openid = request.args.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     deviceid = request.args.get('deviceid',None)
 
     user = User.query.filter_by(openid=openid).first()
@@ -1969,7 +1993,9 @@ def updateDeviceById():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
 
     deviceid = request.form.get('deviceid', None)
 
@@ -2019,7 +2045,9 @@ def update_wakeword():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
 
     deviceid = request.form.get('deviceid', None)
@@ -2060,7 +2088,9 @@ def choose_device_master():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
     if not user:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -2095,7 +2125,9 @@ def device_switch():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     deviceids = request.form.get('deviceids',None)
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     deviceid_list = []
     if deviceids:
         #转数组
@@ -2143,7 +2175,9 @@ def signle_device_switch():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     deviceid = request.form.get('deviceid',None)
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
 
     if not deviceid or not user:
@@ -2167,7 +2201,9 @@ def multipleUpdateDeviceVolume():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     deviceids = request.form.get('deviceids', None)
     volume = request.form.get('volume', None)
 
@@ -2199,7 +2235,9 @@ def multipleUpdateDeviceDirection():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     deviceids = request.form.get('deviceids', None)
 
     #前端传需要变横版还是竖版的值
@@ -2232,7 +2270,9 @@ def device_unbind():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
 
     user = User.query.filter_by(openid=openid).first()
 
@@ -2260,7 +2300,9 @@ def count_choose_online_device():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
 
     device_list = getDeviceByOpenid(openid)
 
@@ -2273,13 +2315,19 @@ def count_choose_online_device():
 
 
 @miniprogram_api.route('/category', methods=['POST'])
+@jwt_required()
 def category():
     """
     获取课程类别  v2 xiaojuzi
     :return: json
     """
-    openid = request.form.get('openid', None)
 
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    openid = current_user['openid']
     #只要绑定设备默认所有设备的分类如果开启都可共享
     # 获取用户绑定选中且在线的设备
     device_list = getDeviceByOpenid(openid)
@@ -2407,7 +2455,9 @@ def course():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     course_id = request.form.get('course_id', None)
     category_id = request.form.get('category_id', None)
     course_class = request.form.get('course_class', None)
@@ -2511,7 +2561,9 @@ def face_info():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     face_id = request.form.get('face_id', None)
     update_data = request.form.get('update_data', None)
     # face_id,true;face_id,false;face_id,delete
@@ -2607,7 +2659,9 @@ def create_face():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     nickname = request.form.get('nickname', '')
     sex = request.form.get('sex', 0)
     sex = 0 if sex in ['男', '0', 0] else 1
@@ -2678,7 +2732,9 @@ def update_face():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     nickname = request.form.get('nickname', '')
     face_id = request.form.get('face_id', None)
     sex = request.form.get('sex', None)
@@ -2755,7 +2811,9 @@ def face_count_verify():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     data = {'verify': True, 'content': ''}
 
     device_list = getDeviceByOpenid(openid)
@@ -2794,7 +2852,9 @@ def dev_online():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
     data = {'dev_online': False, 'msg': '设备离线'}
 
@@ -2832,7 +2892,9 @@ def check_dev_bind():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
     if not user:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -2875,8 +2937,9 @@ def getUserDeviceid():
     # deviceid = request.args.get('deviceid',None)
 
     #获取用户id
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
     if not user:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -2907,8 +2970,9 @@ def bindExternalDevice():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
     if not user:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -2989,8 +3053,9 @@ def getBindExternalDevice():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     # 获取该用户绑定的外接设备信息  20231113 xiaojuzi
     devices = UserExternalDevice.query.filter_by(userid=openid)
 
@@ -3113,8 +3178,9 @@ def getUnbindExternalDevice():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     # 获取该用户绑定的外接设备信息
     devices = UserExternalDevice.query.filter_by(userid=openid)
 
@@ -3200,8 +3266,9 @@ def createExternalDevice():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
     if not user:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -3283,8 +3350,9 @@ def unbindExternalDevice():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
 
     if not user:
@@ -3326,7 +3394,9 @@ def multiExternalDeviceManage():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
 
     if not user:
@@ -3482,7 +3552,9 @@ def getExternalDeviceBydeviceid():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
 
     if not user:
@@ -3613,7 +3685,9 @@ def getCourseQuestionData():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
 
     courseid = request.form.get('course_id', None)
@@ -3674,8 +3748,9 @@ def updateExternalDevceName():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
 
     deviceid = request.form.get('deviceid', None)
@@ -3817,8 +3892,9 @@ def share_device():
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
     if not user:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -3848,8 +3924,9 @@ def link_bind(deviceid):
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = request.form.get('openid', None)
-
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     user = User.query.filter_by(openid=openid).first()
     if not user:
         return jsonify(ret_data(PARAMS_ERROR))
