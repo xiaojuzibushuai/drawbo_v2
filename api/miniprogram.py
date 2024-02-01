@@ -153,28 +153,29 @@ def getUserDetailByWX():
             data_info.pop('watermark')
 
             #执行注册方法 用户同意授权就默认注册 20231102 xioajuzi v2
+            #update by xiaojuzi v2 202402010 取消此逻辑
 
-            user = User.query.filter_by(register_phone=data_info['phoneNumber']).first()
-
-            if user:
-                user.uptime = datetime.now()
-                db.session.commit()
-            else:
-                # 兼容v1版本的默认注册 xiaojuzi v2 20231129 （20231215暂时这样待修改）
-                user1 = User.query.filter_by(openid=openid).first()
-                if user1:
-                    user1.uptime = datetime.now()
-                    user1.register_phone = data_info['phoneNumber']
-                    db.session.commit()
-                else:
-                    user2 = User(openid=openid,
-                                 register_phone=data_info['phoneNumber'],
-                                 uptime=datetime.now(),
-                                 login_count=1
-                                 )
-                    db.session.add(user2)
-                    db.session.commit()
-                    logging.info('new user:%s' % (user2))
+            # user = User.query.filter_by(register_phone=data_info['phoneNumber']).first()
+            #
+            # if user:
+            #     user.uptime = datetime.now()
+            #     db.session.commit()
+            # else:
+            #     # 兼容v1版本的默认注册 xiaojuzi v2 20231129 （20231215暂时这样待修改）
+            #     user1 = User.query.filter_by(openid=openid).first()
+            #     if user1:
+            #         user1.uptime = datetime.now()
+            #         user1.register_phone = data_info['phoneNumber']
+            #         db.session.commit()
+            #     else:
+            #         user2 = User(openid=openid,
+            #                      register_phone=data_info['phoneNumber'],
+            #                      uptime=datetime.now(),
+            #                      login_count=1
+            #                      )
+            #         db.session.add(user2)
+            #         db.session.commit()
+            #         logging.info('new user:%s' % (user2))
 
             logging.info('data_info:%s' % (data_info))
 

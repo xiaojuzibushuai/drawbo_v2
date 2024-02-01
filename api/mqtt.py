@@ -50,7 +50,11 @@ def mqtt_push_voice():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
+
     url = request.form.get('url', None)
     category = request.form.get('category', 0)
 
@@ -106,7 +110,9 @@ def mqtt_push_music():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     operate = request.form.get('operate', 0)
     url = request.form.get('url', None)
     category = request.form.get('category', 0)
@@ -158,7 +164,9 @@ def mqtt_push_data() -> object:
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     course_id = request.form.get('course_id', None)
     is_free = request.form.get('is_free', '0')
 
@@ -1227,7 +1235,9 @@ def mqtt_push_action():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     operate = request.form.get('operate', None)
     # xiaojuzi v2
     deviceid = request.form.get('deviceid', None)
@@ -1336,7 +1346,9 @@ def mqtt_push_direction():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     deviceid = request.form.get('deviceid', None)
     direction = request.form.get('direction', None)
 
@@ -1426,7 +1438,9 @@ def mqtt_push_volume():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     deviceid = request.form.get('deviceid', None)
     volume = request.form.get('volume', None)
 
@@ -1486,7 +1500,9 @@ def mqtt_push_ui():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     operate = request.form.get('operate', 0)
     arg = request.form.get('arg', None)
 
@@ -1602,7 +1618,9 @@ def upgrade():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    openid = current_user['openid']
     if not openid:
         return jsonify(ret_data(PARAMS_ERROR))
 
