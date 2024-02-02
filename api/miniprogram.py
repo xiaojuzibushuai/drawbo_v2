@@ -5,6 +5,7 @@ import random
 import re
 import string
 import time
+import zipfile
 
 import requests
 import json
@@ -15,6 +16,7 @@ from flask_jwt_extended import create_access_token, get_jwt_identity, create_ref
 from flask_jwt_extended import get_jwt
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
+from pypinyin import pinyin, Style
 
 from sqlalchemy import func, cast, Integer, or_, and_, not_
 
@@ -29,6 +31,7 @@ from models.revoked_token import RevokedToken
 from models.share_codes import ShareCodes
 from models.sms_send import SmsSend
 from models.user import User, FaceInfo, CustomerService
+from models.wakeword import Wakeword
 from script.mosquitto_product import user_insert, user_remove
 from sys_utils import db, app
 from models.course import Category, CourseIntroduce, ContactUS, Course, DeviceCourse, DeviceCategory
@@ -1944,9 +1947,68 @@ def get_wakeword():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     #前台需要嵌套数组
-    data = [['玲玲','花花','儿子','乖儿子','小芳', '小花', '小凯','小丽','小智','小季','小爱','小黑','小磊','小美','小皮','小太','小妖','小源','小紫']]
+    #20240202 xiaojuzi v2 保存到数据库中
+    wakeword = Wakeword.query.all()
+    data = model_to_dict(wakeword)
 
     return jsonify(ret_data(SUCCESS, data=data))
+
+
+@miniprogram_api.route('/addWakeword', methods=['POST'])
+@jwt_required()
+#多设备管理 设备唤醒词添加 xiaojuzi v2 20240202
+def addWakeword():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    file = request.files
+    # print(file.items())
+    # print(file.getlist('file'))
+
+    if file:
+        for f in file.getlist('file'):
+            extension = f.filename.split('.')[-1]
+            #设计支持这些格式['zip','7z','rar','tar'] 现在只支持zip
+            if extension not in ['zip']:
+                return jsonify(ret_data(PARAMS_ERROR, data='文件格式错误'))
+
+            filename = f.filename.split('.')[:-1]
+            pinyin_list = pinyin(filename, style=Style.NORMAL)
+            pinyin_str = ''.join([item[0] for item in pinyin_list])
+
+            wakeword = Wakeword.query.filter_by(name=pinyin_str).first()
+            if wakeword:
+                return jsonify(ret_data(PARAMS_ERROR, data='同音唤醒词已存在'))
+
+            save_path = os.path.join(os.path.abspath('.'), 'static', 'wakeword', f.filename).replace('\\','/')
+            f.save(save_path)
+
+            #解压缩合乎格式的压缩包
+            getExtractFile(save_path,extension)
+
+            wakeword = Wakeword(name=filename,save_path=f'wakeword/{pinyin_str}')
+            db.session.add(wakeword)
+            db.session.commit()
+
+        return jsonify(ret_data(SUCCESS, data='唤醒词添加成功'))
+
+    return jsonify(ret_data(PARAMS_ERROR, data='唤醒词添加失败'))
+
+#解压缩合格后缀文件 xiaojuzi v2 20240202
+#暂时只解压zip的文件
+def getExtractFile(save_path,extension):
+    if extension == 'zip':
+        extract_path = '/'.join(save_path.split('/')[:-1])
+        with zipfile.ZipFile(save_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_path)
+    elif extension == '7z':
+        pass
+    elif extension == 'rar':
+        pass
+    elif extension == 'tar':
+        pass
 
 
 @miniprogram_api.route('/getDevicebyId', methods=['GET'])
