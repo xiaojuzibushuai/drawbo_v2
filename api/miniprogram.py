@@ -1988,13 +1988,36 @@ def addWakeword():
             #解压缩合乎格式的压缩包
             getExtractFile(save_path,extension)
 
-            wakeword = Wakeword(name=filename,save_path=f'wakeword/{pinyin_str}')
+            wakeword = Wakeword(name=pinyin_str,save_path=f'wakeword/{pinyin_str}',show_name=filename)
             db.session.add(wakeword)
             db.session.commit()
 
         return jsonify(ret_data(SUCCESS, data='唤醒词添加成功'))
 
     return jsonify(ret_data(PARAMS_ERROR, data='唤醒词添加失败'))
+
+
+@miniprogram_api.route('/deleteWakeword', methods=['POST'])
+@jwt_required()
+#多设备管理 设备唤醒词删除 xiaojuzi v2 20240202
+def deleteWakeword():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    word_id = request.form.get('word_id',None)
+    if not word_id:
+        return jsonify(ret_data(PARAMS_ERROR, data='参数错误'))
+
+    wakeword = Wakeword.query.filter_by(id=word_id).first()
+    if wakeword:
+        db.session.delete(wakeword)
+        db.session.commit()
+        return jsonify(ret_data(SUCCESS, data='唤醒词删除成功'))
+    else:
+        return jsonify(ret_data(PARAMS_ERROR, data='参数错误'))
+
 
 #解压缩合格后缀文件 xiaojuzi v2 20240202
 #暂时只解压zip的文件
