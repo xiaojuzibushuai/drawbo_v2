@@ -29,6 +29,7 @@ from api.miniprogram import validate_phone_number, generate_nickname, sendSms, v
 from api.mqtt import sortDeviceByMaster
 from config import REDIS_HOST, REDIS_DB, REDIS_PORT, oss_access_key_id, oss_access_key_secret, oss_bucket_name, \
     oss_endpoint, ffmpeg_path, ffprobe_path, HOST, JWT_ACCESS_TOKEN_EXPIRES, cdn_oss_url
+from models.admin_user import AdminUser
 from models.course import Category, DeviceCategory, Course, DeviceCourse
 from models.course_audio import CourseAudio
 from models.device import Device
@@ -43,7 +44,7 @@ from utils.OSSUploader import upload_file, bucket, delete_folder
 from utils.error_code import PARAMS_ERROR, PHONE_NUMBER_ERROR, PHONE_NOT_FIND, SUCCESS, PASSWORD_ERROR, SMS_SEND_ERROR, \
     USER_NOT_FIND, UNAUTHORIZED_ACCESS, VIDEO_UPLOAD_FAILED, SMS_CODE_ERROR, SMS_CODE_EXPIRE, \
     VIDEO_UPLOAD_NAME_REPEATED, DEVICE_NOT_FIND, VIDEO_FORMAT_ERROR, CHUNK_UPLOAD_EXIST, COURSE_UNBIND_VIDEO, \
-    VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT, VIDEO_UPLOAD_FAST_SUCCESS, VIDEO_IS_PROCESSING, SCENE_ERROR
+    VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT, VIDEO_UPLOAD_FAST_SUCCESS, VIDEO_IS_PROCESSING, SCENE_ERROR, LOGIN_ERROR
 from utils.tools import ret_data, check_password, getUserIp, model_to_dict, dict_fill_url, get_location_by_ip, \
     video_resource_decrypt, video_resource_encrypt, paginate_data
 from utils.video_utils import generate_m3u8, test_generate_m3u8, get_ts_list, getVideoDpiPath
@@ -53,6 +54,10 @@ web_back_api = Blueprint('web_back', __name__, url_prefix='/api/v2/web_back')
 @web_back_api.route('/test', methods=['GET', 'POST'])
 # @jwt_required()
 def test():
+    sceneid = request.form.getlist('sceneid')
+
+    device_list = getDeviceListBySceneId(sceneid)
+    print(device_list)
     #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
     return jsonify({'message': 'success'})
 
@@ -109,6 +114,44 @@ def loginByPassword():
         }))
     else:
         return jsonify(ret_data(PASSWORD_ERROR))
+
+
+#管理员登录接口 20240204 xiaojuzi v2
+@web_back_api.route('/admin_login', methods=['POST'])
+# @decorator_sign
+def adminLogin():
+
+    username = request.form.get('username', None)
+
+    password = request.form.get('password')
+
+    if not username or not password:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user = AdminUser.query.filter_by(username=username).first()
+
+    if not user:
+        return jsonify(ret_data(PHONE_NUMBER_ERROR))
+
+    #校验密码 20231202 xiaojuzi v2
+    # print(user.password)
+    is_valid = check_password(password, user.password)
+    if is_valid:
+        user1 = model_to_dict(user)
+        #生成令牌 20231204 xiaojuzi v2
+        access_token = create_access_token(identity=user1)
+        refresh_token = create_refresh_token(identity=user1)
+
+        logging.info('user login:%s' % (user1))
+        return jsonify(ret_data(SUCCESS, data={
+            'message': '登录成功！',
+            'access_token': access_token,
+           'refresh_token': refresh_token,
+        }))
+    else:
+        return jsonify(ret_data(PASSWORD_ERROR))
+
+
 
 #用户手机号验证码发送验证码前查找手机号是否存在 存在则就发送短信
 @web_back_api.route('/phone_is_exist', methods=['POST'])
@@ -1251,7 +1294,8 @@ def videoAutoPushDatToDevice():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     url = request.form.get('url', None)
-    sceneid = request.form.get('sceneid')
+    #20240204 xiaojuzi v2  修改
+    sceneid = request.form.getlist('sceneid')
 
     if not url or not sceneid:
         return jsonify(ret_data(PARAMS_ERROR))
@@ -1307,6 +1351,7 @@ def videoAutoPushDatToDevice():
         logging.info("下载失败，状态码:%s" % response.status_code)
         return jsonify(ret_data(PARAMS_ERROR))
         # print('下载失败，状态码:', response.status_code)
+
 
 
 #保存在线视频课程脚本接口  update 20240112  by xiaojuzi v2
@@ -1727,25 +1772,26 @@ def updateCourseVideoByCourseId():
 
 
 #根据用户选择的场景id给该用户场景下的画小宇设备进行视频交互 20240131 xiaojuzi
-def getDeviceListBySceneId(sceneid) -> list:
-
-    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
-
-    if not user_scene:
-        return None
-
-    # 查询用户在此场景下的设备id
-    devices = User_Device.query.filter_by(userid=user_scene.userid, sceneid=user_scene.id).all()
-
-    if not devices:
-        return None
+def getDeviceListBySceneId(sceneids: list) -> list:
 
     device_list = []
+    for sceneid in sceneids:
 
-    for device in devices:
-        device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+        user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
 
-        if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
-            device_list.append(device1)
+        if not user_scene:
+            continue
+
+        # 查询用户在此场景下的设备id
+        devices = User_Device.query.filter_by(userid=user_scene.userid, sceneid=user_scene.id).all()
+
+        if not devices:
+            continue
+
+        for device in devices:
+            device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
+            if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+                device_list.append(device1)
 
     return device_list

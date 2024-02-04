@@ -127,6 +127,7 @@ def iot_topic():
                     deviceid=deviceid,
                     userid=custom,
                     status=0,
+                    status_update=datetime.now()
                 )
                 db.session.add(user_device)
                 db.session.commit()
@@ -270,6 +271,7 @@ def iot_send():
                     deviceid=deviceid,
                     userid=openid,
                     status=0,
+                    status_update=datetime.now()
                 )
                 db.session.add(user_device)
                 db.session.commit()

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sys_utils import db
 
 #xiaojuzi 20231024
@@ -13,6 +15,9 @@ class UserExternalDevice(db.Model):
 
     # 外接设备id
     deviceid = db.Column(db.String(32), db.ForeignKey('external_device.deviceid'))
+
+    # 绑定状态时间 20240202 xiaojuzi v2
+    status_update = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     sceneid = db.Column(db.Integer, db.ForeignKey('device_group.id'))
 

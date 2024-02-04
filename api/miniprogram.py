@@ -1784,6 +1784,7 @@ def multi_device_manage():
             'volume': '',
             'direction': '',
             'status': '',
+            'status_update': '',
             'data': {
                 'dev_online': '',
                 'msg': ''
@@ -1803,6 +1804,8 @@ def multi_device_manage():
             device_dict['direction'] = device1.direction
 
             device_dict['status'] = device.status
+            # 设备绑定时间 20240204 xiaojuzi
+            device_dict['status_update'] = device.status_update
 
 
             if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
@@ -1826,6 +1829,7 @@ def multi_device_manage():
                 'volume': '',
                 'direction': '',
                 'status': '',
+                'status_update': '',
                 'data': {
                     'dev_online': '',
                     'msg': ''
@@ -1847,6 +1851,8 @@ def multi_device_manage():
         'wakeword': '',
         'volume': '',
         'direction': '',
+        'status': '',
+        'status_update': '',
         'data': {
             'dev_online': '',
             'msg': ''
@@ -1867,6 +1873,10 @@ def multi_device_manage():
         device_dict['is_master'] = device1.is_master
         device_dict['volume'] = device1.volume
         device_dict['direction'] = device1.direction
+
+        device_dict['status'] = device.status
+        # 设备绑定时间 20240204 xiaojuzi
+        device_dict['status_update'] = device.status_update
 
         if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
 
@@ -1891,6 +1901,8 @@ def multi_device_manage():
             'wakeword': '',
             'volume': '',
             'direction': '',
+            'status': '',
+            'status_update': '',
             'data': {
                 'dev_online': '',
                 'msg': ''
@@ -3095,6 +3107,8 @@ def bindExternalDevice():
 
         user_external_device1.external_deviceid = external_deviceid
         user_external_device1.d_type = device.d_type
+        #更新绑定时间 20240204 xiaojuzi v2
+        user_external_device1.status_update = datetime.now()
 
         # userExternalDevice = UserExternalDevice(userid = openid,
         #                                         deviceid = deviceid,
@@ -3119,6 +3133,8 @@ def bindExternalDevice():
 
         user_external_device1.external_deviceid = external_deviceid
         user_external_device1.d_type = device.d_type
+        #更新绑定时间 20240204 xiaojuzi v2
+        user_external_device1.status_update = datetime.now()
 
         # userExternalDevice = UserExternalDevice(userid=openid,
         #                                         deviceid=deviceid,
@@ -3162,6 +3178,7 @@ def getBindExternalDevice():
             'is_choose': '',
             'd_type': '',
             'mac': '',
+            'status_update':'',
             'data': {
                 'dev_online': '',
                 'msg': ''
@@ -3175,6 +3192,8 @@ def getBindExternalDevice():
             device_dict['devicename'] = device1.devicename
             device_dict['d_type'] = device.d_type
             device_dict['mac'] = device1.mac
+            # 设备绑定时间 20240204 xiaojuzi
+            device_dict['status_update'] = device1.status_update
 
             device_dict['is_choose'] = device.is_choose
 
@@ -3190,6 +3209,7 @@ def getBindExternalDevice():
                 'is_choose': '',
                 'd_type': '',
                 'mac': '',
+                'status_update':'',
                 'data': {
                     'dev_online': '',
                     'msg': ''
@@ -3209,6 +3229,7 @@ def getBindExternalDevice():
         'is_choose': '',
         'd_type': '',
         'mac': '',
+        'status_update': '',
         'data': {
             'dev_online': '',
             'msg': ''
@@ -3230,6 +3251,8 @@ def getBindExternalDevice():
         device_dict['devicename'] = device1.devicename
         device_dict['d_type'] = device.d_type
         device_dict['mac'] = device1.mac
+        # 设备绑定时间 20240204 xiaojuzi
+        device_dict['status_update'] = device1.status_update
 
         device_dict['is_choose'] = device.is_choose
 
@@ -3245,6 +3268,7 @@ def getBindExternalDevice():
             'is_choose': '',
             'd_type': '',
             'mac': '',
+            'status_update': '',
             'data': {
                 'dev_online': '',
                 'msg': ''
@@ -3283,6 +3307,7 @@ def getUnbindExternalDevice():
         'is_choose': '',
         'd_type': '',
         'mac': '',
+        'status_update': '',
         'data': {
             'dev_online': '',
             'msg': ''
@@ -3317,6 +3342,9 @@ def getUnbindExternalDevice():
         device_dict['d_type'] = device.d_type
         device_dict['mac'] = device1.mac
 
+        # 设备绑定时间 20240204 xiaojuzi
+        device_dict['status_update'] = device1.status_update
+
         device_dict['is_choose'] = device.is_choose
 
         device_dict['data']['msg'] = '设备存在'
@@ -3331,6 +3359,7 @@ def getUnbindExternalDevice():
             'is_choose': '',
             'd_type': '',
             'mac': '',
+            'status_update': '',
             'data': {
                 'dev_online': '',
                 'msg': ''
@@ -3400,7 +3429,9 @@ def createExternalDevice():
             devicename=devicename,
             d_type=d_type,
             qrcode_suffix_data='device/%s.png' % deviceid,
-            topic=topic
+            topic=topic,
+            # 设备绑定时间 20240204 xiaojuzi
+            status_update=datetime.now()
         )
 
         db.session.add(de)
@@ -3511,6 +3542,7 @@ def multiExternalDeviceManage():
             'is_master': '',
             'wakeword': '',
             'volume': '',
+            'status_update': '',
             'data': {
                 'dev_online': '',
                 'device_external_data': ''
@@ -3532,6 +3564,10 @@ def multiExternalDeviceManage():
             device_dict['wakeword'] = device1.wakeword
             device_dict['is_master'] = device1.is_master
             device_dict['volume'] = device1.volume
+
+            #设备绑定时间 20240204 xiaojuzi
+            device_dict['status_update'] = device.status_update
+
             device_dict['data']['device_external_data'] = device_external_data
 
             if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
@@ -3555,6 +3591,7 @@ def multiExternalDeviceManage():
                 'is_master': '',
                 'wakeword': '',
                 'volume': '',
+                'status_update': '',
                 'data': {
                     'dev_online': '',
                     'device_external_data': ''
@@ -3575,6 +3612,7 @@ def multiExternalDeviceManage():
         'is_master': '',
         'wakeword': '',
         'volume': '',
+        'status_update': '',
         'data': {
             'dev_online': '',
             'device_external_data': ''
@@ -3596,6 +3634,10 @@ def multiExternalDeviceManage():
         device_dict['wakeword'] = device1.wakeword
         device_dict['is_master'] = device1.is_master
         device_dict['volume'] = device1.volume
+
+        #设备绑定时间 20240204 xiaojuzi
+        device_dict['status_update'] = device.status_update
+
         device_dict['data']['device_external_data'] = device_external_data
 
         if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
@@ -3619,6 +3661,7 @@ def multiExternalDeviceManage():
             'is_master': '',
             'wakeword': '',
             'volume': '',
+            'status_update': '',
             'data': {
                 'dev_online': '',
                 'device_external_data': ''

@@ -1,4 +1,5 @@
 from sys_utils import db
+from datetime import datetime
 
 #xiaojuzi
 class User_Device(db.Model):
@@ -9,6 +10,9 @@ class User_Device(db.Model):
     userid = db.Column(db.String(64),db.ForeignKey('user.openid'))
     deviceid = db.Column(db.String(32), db.ForeignKey('device.deviceid'))
     is_choose = db.Column(db.Boolean, default=True)   #设备是否选中 xiaojuzi
+
+    # 绑定状态时间 20240202 xiaojuzi v2
+    status_update = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     sceneid = db.Column(db.Integer, db.ForeignKey('device_group.id'))
 

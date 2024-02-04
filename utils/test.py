@@ -43,7 +43,7 @@ def check_password(password, hashed_password):
 
 def test1():
     # 使用示例
-    password = '1234567'
+    password = 'Aky666666'
     hashed_password = hash_password(password)
     print(hashed_password)
     # hashed_password = '$2b$12$jXWtZ3FGBToGdURVGXa/bOvW4FqJ/TGjuJfR509MxiD/StLrJqcrK'
@@ -240,10 +240,11 @@ def test11():
 if __name__ == '__main__':
     ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
     print(os.path.dirname(ffmpeg_path))
+    test1()
     # test8()
     # test9()
     # test10()
-    test11()
+    # test11()
     # str = '0123'
     # print(str[0:])
 
