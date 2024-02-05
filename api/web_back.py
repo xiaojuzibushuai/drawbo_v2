@@ -28,7 +28,7 @@ from api.miniprogram import validate_phone_number, generate_nickname, sendSms, v
     getUserSceneStrategy
 from api.mqtt import sortDeviceByMaster
 from config import REDIS_HOST, REDIS_DB, REDIS_PORT, oss_access_key_id, oss_access_key_secret, oss_bucket_name, \
-    oss_endpoint, ffmpeg_path, ffprobe_path, HOST, JWT_ACCESS_TOKEN_EXPIRES, cdn_oss_url
+    oss_endpoint, ffmpeg_path, ffprobe_path, HOST, JWT_ACCESS_TOKEN_EXPIRES, cdn_oss_url, SMS_EXPIRE_TIME
 from models.admin_user import AdminUser
 from models.course import Category, DeviceCategory, Course, DeviceCourse
 from models.course_audio import CourseAudio
@@ -189,7 +189,7 @@ def loginByPhone():
     if not sendSms:
         return jsonify(ret_data(SMS_SEND_ERROR))
 
-    if smsSend and (datetime.now() - smsSend.uptime).seconds < 120:
+    if smsSend and (datetime.now() - smsSend.uptime).seconds < SMS_EXPIRE_TIME:
         if smsSend.code == code:
 
             user = User.query.filter_by(register_phone=register_phone).first()

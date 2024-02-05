@@ -22,7 +22,8 @@ from sqlalchemy import func, cast, Integer, or_, and_, not_
 
 from api.auth import jwt_redis_blocklist
 from api.mqtt import mqtt_push_wakeword_data, mqttPushAnswerToKeyBoard, get_mqtt_push_volume, get_mqtt_push_direction
-from config import HOST, APPSECRET, APPID, SignName, LoginTemplateCode, JWT_ACCESS_TOKEN_EXPIRES
+from config import HOST, APPSECRET, APPID, SignName, LoginTemplateCode, JWT_ACCESS_TOKEN_EXPIRES, SMS_EXPIRE_TIME, \
+    DEVICE_EXPIRE_TIME
 from models.course_question import CourseQuestion
 from models.device import Device
 from models.logout_user import LogoutUser
@@ -156,7 +157,7 @@ def getUserDetailByWX():
             data_info.pop('watermark')
 
             #执行注册方法 用户同意授权就默认注册 20231102 xioajuzi v2
-            #update by xiaojuzi v2 202402010 取消此逻辑
+            #update by xiaojuzi v2 20240201 取消此逻辑
 
             # user = User.query.filter_by(register_phone=data_info['phoneNumber']).first()
             #
@@ -193,7 +194,6 @@ def getUserDetailByWX():
 @miniprogram_api.route('/auth/loginByPassword', methods=['POST'])
 # @decorator_sign
 def loginByPassword():
-
 
     register_phone = request.form.get('register_phone', None)
 
@@ -268,7 +268,7 @@ def register():
     if not sendSms:
         return jsonify(ret_data(SMS_SEND_ERROR))
 
-    if smsSend and (datetime.now() - smsSend.uptime).seconds < 120:
+    if smsSend and (datetime.now() - smsSend.uptime).seconds < SMS_EXPIRE_TIME:
         if smsSend.code == code:
 
             user = User.query.filter_by(register_phone=register_phone).first()
@@ -1378,9 +1378,8 @@ def getUserSceneShareCodeList():
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     userid = current_user['openid']
 
-    if not userid:
-        return jsonify(ret_data(PARAMS_ERROR))
-
+    # if not userid:
+    #     return jsonify(ret_data(PARAMS_ERROR))
     # share_codes = ShareCodes.query.filter(ShareCodes.userid==userid,ShareCodes.end_date > datetime.now()).all()
 
     #临时修改 20231218
@@ -1475,7 +1474,7 @@ def getUserSceneShareCodeList():
     return jsonify(ret_data(SUCCESS,data=data_list))
 
 
-#用户分享码删除 xiaojuzi v2 20231214 有缺陷 不使用 暂不修改20231226
+#用户分享码删除 xiaojuzi v2 20231214 有缺陷 上级需求不明 不使用 暂不修改20231226
 # @miniprogram_api.route('/deleteUserSceneShareCode', methods=['POST'])
 # @jwt_required()
 def deleteUserSceneShareCode():
@@ -1496,7 +1495,7 @@ def deleteUserSceneShareCode():
     else:
         return jsonify(ret_data(SHARE_CODE_ERROR))
 
-#用户分享码详情修改 xiaojuzi v2 20231214 有缺陷 不使用 暂不修改20231226
+#用户分享码详情修改 xiaojuzi v2 20231214 有缺陷  上级需求不明 不使用 暂不修改20231226
 # @miniprogram_api.route('/updateUserSceneShareCode', methods=['POST'])
 # @jwt_required()
 def updateUserSceneShareCode():
@@ -1757,10 +1756,10 @@ def multi_device_manage():
     #20231113 xiaojuzi v2 分组逻辑新增
     # groupid = request.form.get('groupid', 1)
 
-    user = User.query.filter_by(openid=openid).first()
+    # user = User.query.filter_by(openid=openid).first()
 
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     #获取该用户的设备信息 分组逻辑新增 20231113 xiaojuzi
     devices = User_Device.query.filter_by(userid=openid)
@@ -1808,7 +1807,7 @@ def multi_device_manage():
             device_dict['status_update'] = device.status_update
 
 
-            if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
+            if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
 
                 device_dict['data']['dev_online'] = True
                 device_dict['data']['msg'] = '设备在线'
@@ -1878,7 +1877,7 @@ def multi_device_manage():
         # 设备绑定时间 20240204 xiaojuzi
         device_dict['status_update'] = device.status_update
 
-        if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
+        if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
 
             device_dict['data']['dev_online'] = True
             device_dict['data']['msg'] = '设备在线'
@@ -1928,12 +1927,12 @@ def update_devicname():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
+    # user = User.query.filter_by(openid=openid).first()
 
     deviceid = request.form.get('deviceid', None)
     devicename = request.form.get('devicename',None)
 
-    if not user or not deviceid or not devicename:
+    if not deviceid or not devicename:
         return jsonify(ret_data(PARAMS_ERROR))
 
 
@@ -2061,9 +2060,9 @@ def getDevicebyId():
     openid = current_user['openid']
     deviceid = request.args.get('deviceid',None)
 
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
 
@@ -2097,9 +2096,9 @@ def updateDeviceById():
 
     deviceid = request.form.get('deviceid', None)
 
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
     if not device:
@@ -2146,12 +2145,12 @@ def update_wakeword():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
+    # user = User.query.filter_by(openid=openid).first()
 
     deviceid = request.form.get('deviceid', None)
     wakeword = request.form.get('wakeword', None)
 
-    if not user or not deviceid or not wakeword:
+    if not deviceid or not wakeword:
         return jsonify(ret_data(PARAMS_ERROR))
 
     device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
@@ -2159,7 +2158,7 @@ def update_wakeword():
 
     if device:
         #在进一步行判断
-        if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+        if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
 
             device1.wakeword = wakeword
 
@@ -2189,9 +2188,9 @@ def choose_device_master():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     deviceid = request.form.get('deviceid', None)
 
@@ -2233,10 +2232,10 @@ def device_switch():
         #去重 可序列化
         deviceid_list = list(set(deviceid_list))
 
-        user = User.query.filter_by(openid=openid)
-        if not user:
-            logging.info('openid:%s USER_NOT_FIND' % openid)
-            return jsonify(ret_data(USER_NOT_FIND))
+        # user = User.query.filter_by(openid=openid)
+        # if not user:
+        #     logging.info('openid:%s USER_NOT_FIND' % openid)
+        #     return jsonify(ret_data(USER_NOT_FIND))
 
         for deviceid in deviceid_list:
             # 获取该用户的设备信息
@@ -2276,9 +2275,9 @@ def signle_device_switch():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
+    # user = User.query.filter_by(openid=openid).first()
 
-    if not deviceid or not user:
+    if not deviceid:
         return jsonify(ret_data(PARAMS_ERROR))
 
     device = User_Device.query.filter_by(userid=openid,deviceid=deviceid).first()
@@ -2372,10 +2371,9 @@ def device_unbind():
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
 
-    user = User.query.filter_by(openid=openid).first()
-
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     deviceid = request.form.get('deviceid', None)
 
@@ -2970,7 +2968,7 @@ def dev_online():
 
         device1 = Device.query.filter_by(deviceid=device.deviceid).first()
 
-        if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
+        if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
             data['dev_online'] = True
             data['msg'] = '设备在线'
 
@@ -2993,9 +2991,9 @@ def check_dev_bind():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     devices = User_Device.query.filter_by(userid=openid).all()
 
@@ -3038,9 +3036,9 @@ def getUserDeviceid():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     devices = User_Device.query.filter_by(userid=openid).all()
 
@@ -3071,9 +3069,9 @@ def bindExternalDevice():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     deviceid = request.form.get('deviceid', None)
 
@@ -3384,9 +3382,9 @@ def createExternalDevice():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     deviceid = request.form.get('deviceid', None)
     mac = request.form.get('mac', None)
@@ -3470,10 +3468,9 @@ def unbindExternalDevice():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     deviceid = request.form.get('deviceid', None)
 
@@ -3514,10 +3511,9 @@ def multiExternalDeviceManage():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     #获取该用户的设备信息
     devices = User_Device.query.filter_by(userid=openid)
@@ -3570,7 +3566,7 @@ def multiExternalDeviceManage():
 
             device_dict['data']['device_external_data'] = device_external_data
 
-            if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
+            if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
 
                 device_dict['data']['dev_online'] = True
 
@@ -3640,7 +3636,7 @@ def multiExternalDeviceManage():
 
         device_dict['data']['device_external_data'] = device_external_data
 
-        if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30:
+        if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
 
             device_dict['data']['dev_online'] = True
 
@@ -3684,10 +3680,9 @@ def getExternalDeviceBydeviceid():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     deviceid = request.form.get('deviceid', None)
 
@@ -3817,11 +3812,11 @@ def getCourseQuestionData():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
+    # user = User.query.filter_by(openid=openid).first()
 
     courseid = request.form.get('course_id', None)
 
-    if not user or not courseid:
+    if not courseid:
         return jsonify(ret_data(PARAMS_ERROR))
 
     question_data = []
@@ -3880,12 +3875,12 @@ def updateExternalDevceName():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
+    # user = User.query.filter_by(openid=openid).first()
 
     deviceid = request.form.get('deviceid', None)
     devicename = request.form.get('devicename',None)
 
-    if not user or not deviceid or not devicename:
+    if not deviceid or not devicename:
         return jsonify(ret_data(PARAMS_ERROR))
 
     device = UserExternalDevice.query.filter_by(userid=openid,deviceid=deviceid).first()
@@ -3977,7 +3972,7 @@ def getDeviceByOpenid(openid: str) -> list:
 
         for device in devices:
             device1 = Device.query.filter_by(deviceid=device.deviceid).first()
-            if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+            if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
                 device_list.append(device1)
 
         return device_list
@@ -4024,9 +4019,9 @@ def share_device():
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     user_device = User_Device.query.filter_by(userid=openid).all()
 
@@ -4056,9 +4051,9 @@ def link_bind(deviceid):
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    user = User.query.filter_by(openid=openid).first()
-    if not user:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # user = User.query.filter_by(openid=openid).first()
+    # if not user:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     device = Device.query.filter_by(deviceid=deviceid).first()
     if not device:
@@ -4071,7 +4066,10 @@ def link_bind(deviceid):
 
     user_device = User_Device(
         userid=openid,
-        deviceid=deviceid
+        deviceid=deviceid,
+        is_choose=True,
+        status=1,
+        status_update=datetime.now()
     )
     db.session.add(user_device)
     db.session.commit()

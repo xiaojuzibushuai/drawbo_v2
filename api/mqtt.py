@@ -10,7 +10,7 @@ import logging
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func, Integer, cast
 
-from config import HOST, ADMIN_HOST
+from config import HOST, ADMIN_HOST, DEVICE_EXPIRE_TIME
 from models.course import Course, DeviceCourse
 from models.device import Device
 from models.external_device import ExternalDevice
@@ -1310,7 +1310,7 @@ def get_mqtt_push_direction(openid :str,deviceids :list,direction :str):
 
         if device:
             if (device.is_choose == True) & (
-                    int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+                    int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
                 #20231130 需求更改 xiaojuzi v2
                 if int(direction) == 1:
 
@@ -1361,7 +1361,7 @@ def mqtt_push_direction():
 
     if device:
         if (device.is_choose == True) & (
-                int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+                int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
 
             # 20231130 需求更改 xiaojuzi v2
             if int(direction) == 1:
@@ -1404,7 +1404,7 @@ def get_mqtt_push_volume(openid :str,deviceids :list,volume :int):
 
         if device:
             if (device.is_choose == True) & (
-                    int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+                    int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
                 device1.volume = volume
 
                 # 发送消息
@@ -1453,7 +1453,7 @@ def mqtt_push_volume():
 
     if device:
         if (device.is_choose == True) & (
-            int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+            int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
 
             device1.volume = volume
 
@@ -1687,7 +1687,7 @@ def sortDeviceByMaster(openid: str)-> list:
     for device in devices:
         device1 = Device.query.filter_by(deviceid=device.deviceid).first()
 
-        if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= 30):
+        if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
             if device1.is_master:
                 device_list.insert(0,device1)
             else:
