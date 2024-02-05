@@ -1422,7 +1422,7 @@ def getAudioJsonByCourseId():
 
     data_list = json.loads(audio.audiojson)
 
-    logging.info("课程脚本查询成功：%s" % data_list)
+    # logging.info("课程脚本查询成功：%s" % data_list)
 
     return jsonify(ret_data(SUCCESS, data=data_list))
 
