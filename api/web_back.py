@@ -322,23 +322,21 @@ def getCourse():
         query_filter.append(Course.id == int(course_id))
 
     #20240130 为了方便测试将测试分类的课程全部允许播放 不做限制 xiaojuzi
-    # if int(category_id)== 7: 该条件下代码都得删掉 else里面为正确逻辑
-    if category_id:
-        if int(category_id) == 7:
-            # 执行sql
-            course_query = db.session.query(Course).filter(*query_filter).group_by(Course.title)
-
-            course_objs = course_query.all()
-
-            if course_objs:
-                course_list = model_to_dict(course_query)
-                course_list = dict_fill_url(course_list, ['img_files'])
-                for cate in course_list:
-                    cate['video_count'] = 999
-            else:
-                course_list = []
-
-            return jsonify(ret_data(SUCCESS, data=course_list))
+    # 以下没注释代码都得删掉
+    # 执行sql
+    # course_query = db.session.query(Course).filter(*query_filter).group_by(Course.title)
+    #
+    # course_objs = course_query.all()
+    #
+    # if course_objs:
+    #     course_list = model_to_dict(course_query)
+    #     course_list = dict_fill_url(course_list, ['img_files'])
+    #     for cate in course_list:
+    #         cate['video_count'] = 999
+    # else:
+    #     course_list = []
+    #
+    # return jsonify(ret_data(SUCCESS, data=course_list))
 
     query_filter.append(User_Course.phone == phone)
     #执行sql
