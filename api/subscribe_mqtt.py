@@ -137,14 +137,17 @@ def insert_data(msg):
     answer_match = re.search(r"answer:'(.*?)'", message)
     parentid_match = re.search(r"parentid:'(.*?)'", message)
 
-    if not device_match or not title_match or not answer_match or not parentid_match:
+    if not device_match or not title_match or not parentid_match:
         return None
 
     device = device_match.group(1)
 
     title = title_match.group(1)
-
-    answer = answer_match.group(1)
+    #修改判断逻辑 xiaojuzi v2 20240205
+    if answer_match:
+        answer = answer_match.group(1)
+    else:
+        answer = '0'
 
     parentid = parentid_match.group(1)
 

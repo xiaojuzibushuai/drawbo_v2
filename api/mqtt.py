@@ -624,11 +624,11 @@ def getKeyboardDataImpl():
 #     return jsonify(ret_data(errcode))
 
 #回退版本待删除 20240104 xiaojuzi v2
-def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str,courseid=None):
+def mqttPushAnswerToKeyBoard(gametype :str,parentid: str,answer=None,courseid=None):
 
     logging.info(' gametype: %s , answer: %s ,parentid: %s ,courseid %s' % (gametype, answer,parentid,courseid))
 
-    if not gametype or not answer or not parentid:
+    if not gametype or not parentid:
         return jsonify(ret_data(PARAMS_ERROR))
 
     topic = '/keyboard/answer/'

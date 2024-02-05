@@ -3772,6 +3772,7 @@ def getExternalDeviceBydeviceid():
 @miniprogram_api.route('/tempPushAnswerToKeyBoard', methods=['GET','POST'])
 @jwt_required()
 #回退版本待删除 20240104 xiaojuzi v2
+#20240205 xiaojuzi v2 修改传递参数 answer 不一定传
 def tempPushAnswerToKeyBoard():
 
     current_user = get_jwt_identity()
@@ -3787,14 +3788,11 @@ def tempPushAnswerToKeyBoard():
     # 20231229 xiaojuzi
     courseid = request.form.get('courseid', None)
 
-    if not gametype or not answer or not parentid:
+    if not gametype or not parentid:
         return jsonify(ret_data(PARAMS_ERROR))
 
     #20231229 xiaojuzi
-    if courseid:
-        mqttPushAnswerToKeyBoard(gametype, answer,parentid,courseid)
-    else:
-        mqttPushAnswerToKeyBoard(gametype, answer, parentid)
+    mqttPushAnswerToKeyBoard(gametype,parentid,answer,courseid)
 
     return jsonify(ret_data(SUCCESS))
 
