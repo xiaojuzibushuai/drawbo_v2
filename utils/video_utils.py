@@ -79,7 +79,6 @@ def get_video_duration(ffprobe_path,input_file):
         return 0
 
 
-
 #根据dpi获取视频分辨率路径 xiaojuzi v2 20240126
 def getVideoDpiPath(dpi):
 
@@ -108,26 +107,27 @@ def getVideoCommand(video_dpi,ffmpeg_path,video_path,cpu_count,keyinfo,m3u8folde
     dpi_path = getVideoDpiPath(video_dpi)
 
     default_command = [
-            ffmpeg_path,
-            '-i', video_path,
-            '-c:v', 'libx264',  # 对视频编码
-            '-c:a', 'aac',  # 对音频编码
-            '-s', '640x360',  # 输出视频分辨率
-            '-pix_fmt', 'yuv420p',  # 输出视频像素格式
-            '-b:a', '128k',  # 音频比特率
-            '-b:v', '800k',  # 视频比特率
-            '-r', '30',  # 输出视频帧率
-            '-hls_key_info_file', keyinfo,  # 秘钥文件
-            '-f', 'hls',  # 生成hls
-            '-hls_time', '5',  # 切片变小
-            '-hls_list_size', '0',  # 设置hls播放列表
-            '-threads', str(cpu_count),  # 多处理器
-            '-hls_playlist_type', 'vod',  # 点播
-            '-force_key_frames', 'expr:gte(t,n_forced*1)',  # 添加强制关键帧参数
-            '-hls_segment_filename', os.path.join(m3u8folder_path, f'encrypt_slice_%05d.ts').replace("\\", "/"),
-            '-hls_flags', 'append_list',  # 追加到现有的播放列表
-            os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/")
-        ]
+        ffmpeg_path,
+        '-i', video_path,
+        '-c:v', 'libx264',  # 对视频编码
+        '-c:a', 'aac',  # 对音频编码
+        '-s', '640x360',  # 输出视频分辨率
+        '-pix_fmt', 'yuv420p',  # 输出视频像素格式
+        '-b:a', '128k',  # 音频比特率
+        '-b:v', '800k',  # 视频比特率
+        '-r', '30',  # 输出视频帧率
+        '-hls_key_info_file', keyinfo,  # 秘钥文件
+        '-f', 'hls',  # 生成hls
+        '-hls_time', '5',  # 切片变小
+        '-hls_list_size', '0',  # 设置hls播放列表
+        '-threads', str(cpu_count),  # 多处理器
+        '-hls_playlist_type', 'vod',  # 点播
+        '-force_key_frames', 'expr:gte(t,n_forced*1)',  # 添加强制关键帧参数
+        '-hls_segment_filename', os.path.join(m3u8folder_path, f'encrypt_slice_%05d.ts').replace("\\", "/"),
+        '-hls_flags', 'append_list',  # 追加到现有的播放列表
+        os.path.join(m3u8folder_path, encrypted_m3u8_name).replace("\\", "/")
+    ]
+
     if dpi_path == 'auto':
         command = [
             ffmpeg_path,
@@ -217,6 +217,7 @@ def test_generate_m3u8(ffmpeg_path,ffprobe_path,video_path,output_path,video_dpi
     encrypted_m3u8_name = 'encrypted_slice.m3u8'
 
     # 使用FFmpeg生成M3U8文件 获取对应分辨率参数
+
     command = getVideoCommand(video_dpi,ffmpeg_path,video_path,cpu_count,keyinfo,m3u8folder_path,encrypted_m3u8_name)
 
     try:
