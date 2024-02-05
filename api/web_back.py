@@ -356,64 +356,6 @@ def getCourse():
 
     return jsonify(ret_data(SUCCESS, data=course_list))
 
-# @web_back_api.route('/getCourse', methods=['POST'])
-# @jwt_required()
-# def getCourse():
-#
-#     current_user = get_jwt_identity()
-#
-#     if not current_user:
-#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-#
-#     openid = current_user['openid']
-#
-#     course_id = request.form.get('course_id', None)
-#     category_id = request.form.get('category_id', None)
-#     course_class = request.form.get('course_class', None)
-#
-#     if course_id == 'null':
-#         course_id = None
-#
-#     # 累加设备所查询到的课程使用次数
-#     query_params = [Course.id, Course.title, Course.detail, Course.category_id, Course.img_files,
-#                     Course.priority, Course.play_time, Course.course_class, Course.volume,
-#                     Course.video_files,
-#                     cast(func.sum(DeviceCourse.use_count), Integer).label('use_count')]
-#     # 查询条件
-#     query_filter = [Course.index_show == 1]
-#
-#     if category_id:
-#         query_filter.append(Course.category_id == int(category_id))
-#
-#     if course_class:
-#         query_filter.append(Course.course_class == course_class)
-#
-#     if course_id:
-#         query_filter.append(Course.id == int(course_id))
-#
-#     # 过滤条件
-#     query_deviceid = db.session.query(User_Device.deviceid).filter(User_Device.userid == openid)
-#
-#     query_filter.append(Device.deviceid.in_(query_deviceid))
-#
-#     # 执行sql
-#     course_query = db.session.query(*query_params).join(
-#         DeviceCourse, DeviceCourse.course_id == Course.id
-#     ).join(
-#         Device, Device.id == DeviceCourse.device_id
-#     ).filter(*query_filter).group_by(Course.title)
-#
-#     course_objs = course_query.all()
-#
-#     if course_objs:
-#         course_list = model_to_dict(course_query)
-#         course_list = dict_fill_url(course_list, ['img_files'])
-#
-#     else:
-#         course_list = []
-#
-#     return jsonify(ret_data(SUCCESS, data=course_list))
-
 
 
 #上传视频切片处理分辨率选择  xiaojuzi v2 20240126
