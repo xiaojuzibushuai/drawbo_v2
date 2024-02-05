@@ -626,14 +626,19 @@ def getKeyboardDataImpl():
 #回退版本待删除 20240104 xiaojuzi v2
 def mqttPushAnswerToKeyBoard(gametype :str,parentid: str,answer=None,courseid=None):
 
-    logging.info(' gametype: %s , answer: %s ,parentid: %s ,courseid %s' % (gametype, answer,parentid,courseid))
+    if not gametype:
+        return jsonify(ret_data(PARAMS_ERROR))
 
-    if not gametype or not parentid:
+    if parentid is None:
         return jsonify(ret_data(PARAMS_ERROR))
 
     topic = '/keyboard/answer/'
 
     #20231121 xiaojuzi v2 数据面板修改游戏类型
+    #临时解决 图生图游戏默认正确 20240205 xiaojuzi v2
+    if not answer:
+        answer = '0'
+
     push_json = f"-{parentid}-{gametype}{answer}-{courseid}"
 
     logging.info("游戏类型及其答案更新：" + push_json)
@@ -847,7 +852,7 @@ def mqttPushKeyImage():
 
     lrc_data = '000000000000000000000000000000000'
 
-    logging.info('drawbo:' + os.getenv('drawbo'))
+    # logging.info('drawbo:' + os.getenv('drawbo'))
     device = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
     logging.info('device' + str(len(device)))
 

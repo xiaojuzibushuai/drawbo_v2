@@ -3788,7 +3788,10 @@ def tempPushAnswerToKeyBoard():
     # 20231229 xiaojuzi
     courseid = request.form.get('courseid', None)
 
-    if not gametype or not parentid:
+    if not gametype:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    if parentid is None:
         return jsonify(ret_data(PARAMS_ERROR))
 
     #20231229 xiaojuzi
