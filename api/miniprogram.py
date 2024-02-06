@@ -1717,7 +1717,10 @@ def validate_password(password):
     # pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$'
 
     #密码长度至少为8个字符,至少包含一个字母、一个数字和一个特殊字符
-    pattern = r'^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$'
+    # pattern = r'^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$'
+
+    #改为简单的密码校验 至少为6个字符 20240206 xiaojuzi v2
+    pattern = r'^.{6,}$'
 
     if re.match(pattern, password):
         return True
