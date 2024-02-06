@@ -137,7 +137,7 @@ def insert_data(msg):
     answer_match = re.search(r"answer:'(.*?)'", message)
     parentid_match = re.search(r"parentid:'(.*?)'", message)
 
-    if not device_match or not title_match or not parentid_match:
+    if not device_match or not title_match :
         return None
 
     device = device_match.group(1)
@@ -149,7 +149,10 @@ def insert_data(msg):
     else:
         answer = '0'
 
-    parentid = parentid_match.group(1)
+    if parentid_match:
+        parentid = parentid_match.group(1)
+    else:
+        parentid = '0'
 
     #title为0 不统计
     if title == '0' or title == '00' or title == '' or title == ' ':

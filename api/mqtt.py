@@ -624,13 +624,13 @@ def getKeyboardDataImpl():
 #     return jsonify(ret_data(errcode))
 
 #回退版本待删除 20240104 xiaojuzi v2
-def mqttPushAnswerToKeyBoard(gametype :str,parentid: str,answer=None,courseid=None):
+def mqttPushAnswerToKeyBoard(parentid=None,gametype=None,answer=None,courseid=None):
 
-    if not gametype:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # if not gametype:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
-    if parentid is None:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # if parentid is None:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
     topic = '/keyboard/answer/'
 
@@ -638,6 +638,11 @@ def mqttPushAnswerToKeyBoard(gametype :str,parentid: str,answer=None,courseid=No
     #临时解决 图生图游戏默认正确 20240205 xiaojuzi v2
     if not answer:
         answer = '0'
+
+    # if not gametype:
+    #     gametype=''
+    # if not courseid:
+    #     courseid=''
 
     push_json = f"-{parentid}-{gametype}{answer}-{courseid}"
 

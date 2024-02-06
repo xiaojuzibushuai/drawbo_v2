@@ -1964,6 +1964,7 @@ def get_wakeword():
     #20240202 xiaojuzi v2 保存到数据库中
     wakeword = Wakeword.query.all()
     data = model_to_dict(wakeword)
+    # data = [['优优','慧慧','花花','玲玲','小爱','小芳']]
 
     return jsonify(ret_data(SUCCESS, data=data))
 
@@ -3791,14 +3792,14 @@ def tempPushAnswerToKeyBoard():
     # 20231229 xiaojuzi
     courseid = request.form.get('courseid', None)
 
-    if not gametype:
-        return jsonify(ret_data(PARAMS_ERROR))
+    # if not gametype:
+    #     return jsonify(ret_data(PARAMS_ERROR))
 
-    if parentid is None:
-        return jsonify(ret_data(PARAMS_ERROR))
+    #if parentid is None:
+        #return jsonify(ret_data(PARAMS_ERROR))
 
     #20231229 xiaojuzi
-    mqttPushAnswerToKeyBoard(gametype,parentid,answer,courseid)
+    mqttPushAnswerToKeyBoard(parentid,gametype,answer,courseid)
 
     return jsonify(ret_data(SUCCESS))
 
