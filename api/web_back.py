@@ -237,18 +237,25 @@ def getUserInfo():
 
     # print(current_user)
 
-    userid = current_user['openid']
-    user = User.query.filter_by(openid=userid).first()
+    if 'openid' in current_user:
 
-    data = model_to_dict(user)
+        userid = current_user['openid']
+        user = User.query.filter_by(openid=userid).first()
 
-    data = dict_fill_url(data, ['avatar'])
+        data = model_to_dict(user)
 
-    location = get_location_by_ip(user.ip)
+        data = dict_fill_url(data, ['avatar'])
 
-    data['location'] = location
+        location = get_location_by_ip(user.ip)
 
-    return jsonify(ret_data(SUCCESS, data=data))
+        data['location'] = location
+
+        return jsonify(ret_data(SUCCESS, data=data))
+    else:
+        #管理员没有 openid 执行此处 20240218 xiaojuzi
+        username = current_user['username']
+        user = AdminUser.query.filter_by(username=username).first()
+        return jsonify(ret_data(SUCCESS, data=model_to_dict(user)))
 
 
 @web_back_api.route('/getCategory', methods=['POST'])

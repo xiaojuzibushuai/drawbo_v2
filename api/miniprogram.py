@@ -3409,7 +3409,7 @@ def createExternalDevice():
 
     #20240104 xiaojuzi v2 外设新增主题
     if d_type == 2:
-        topic = 'keyboard/answer/%s' % str(deviceid)  # 主题
+        topic = '/keyboard/answer/%s' % str(deviceid)  # 主题
     else:
         topic = 'iot/2/%s' % str(deviceid) # 主题
 
@@ -3727,56 +3727,8 @@ def getExternalDeviceBydeviceid():
 
 
 #对键盘群发题目信息 xiaojuzi 20231030 update by xiaojuzi 20240104 更新 先回退旧版本
-# @miniprogram_api.route('/tempPushAnswerToKeyBoard', methods=['GET','POST'])
-# @jwt_required()
-# def tempPushAnswerToKeyBoard():
-#
-#     current_user = get_jwt_identity()
-#     if not current_user:
-#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-#
-#     gametype = request.form.get('gametype', None)
-#
-#     answer = request.form.get('answer', None)
-#
-#     parentid = request.form.get('parentid', None)
-#
-#     #20231229 xiaojuzi
-#     courseid = request.form.get('courseid', None)
-#
-#     if not gametype or not answer or not parentid:
-#         return jsonify(ret_data(PARAMS_ERROR))
-#
-#     #20231229 xiaojuzi
-#     #20240104 xiaojuzi v2 逻辑修改 将对在上课的画小宇设备绑定的键盘进行对点发送数据
-#     openid = current_user['openid']
-#     #获取用户绑定且选择在线的画小宇设备
-#     device_list = getDeviceByOpenid(openid)
-#
-#     if not device_list:
-#         return jsonify(ret_data(UNBIND_DEVICE))
-#
-#     for device in device_list:
-#         ed_list = getExternalDevice(openid,device.deviceid)
-#
-#         if not ed_list:
-#             continue
-#
-#         for ed in ed_list:
-#             if ed['d_type'] == 2:
-#                 if courseid:
-#                     mqttPushAnswerToKeyBoard(gametype, answer, parentid, ed['deviceid'],courseid)
-#                 else:
-#                     mqttPushAnswerToKeyBoard(gametype, answer, parentid,ed['deviceid'])
-#             else:
-#                 continue
-#
-#     return jsonify(ret_data(SUCCESS))
-
 @miniprogram_api.route('/tempPushAnswerToKeyBoard', methods=['GET','POST'])
 @jwt_required()
-#回退版本待删除 20240104 xiaojuzi v2
-#20240205 xiaojuzi v2 修改传递参数 answer 不一定传
 def tempPushAnswerToKeyBoard():
 
     current_user = get_jwt_identity()
@@ -3792,16 +3744,59 @@ def tempPushAnswerToKeyBoard():
     # 20231229 xiaojuzi
     courseid = request.form.get('courseid', None)
 
-    # if not gametype:
-    #     return jsonify(ret_data(PARAMS_ERROR))
-
-    #if parentid is None:
-        #return jsonify(ret_data(PARAMS_ERROR))
-
+    #20240219 更改  xiaojuzi
     #20231229 xiaojuzi
-    mqttPushAnswerToKeyBoard(parentid,gametype,answer,courseid)
+    #20240104 xiaojuzi v2 逻辑修改 将对在上课的画小宇设备绑定的键盘进行对点发送数据
+    openid = current_user['openid']
+    #获取用户绑定且选择在线的画小宇设备
+    device_list = getDeviceByOpenid(openid)
+
+    if not device_list:
+        return jsonify(ret_data(UNBIND_DEVICE))
+
+    for device in device_list:
+        ed_list = getExternalDevice(openid,device.deviceid)
+
+        if not ed_list:
+            continue
+
+        for ed in ed_list:
+            if ed['d_type'] == 2:
+                mqttPushAnswerToKeyBoard(gametype, answer, parentid, ed['deviceid'],courseid)
+            else:
+                continue
 
     return jsonify(ret_data(SUCCESS))
+
+# @miniprogram_api.route('/tempPushAnswerToKeyBoard', methods=['GET','POST'])
+# @jwt_required()
+# #回退版本待删除 20240104 xiaojuzi v2
+# #20240205 xiaojuzi v2 修改传递参数 answer 不一定传
+# def tempPushAnswerToKeyBoard():
+#
+#     current_user = get_jwt_identity()
+#     if not current_user:
+#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+#
+#     gametype = request.form.get('gametype', None)
+#
+#     answer = request.form.get('answer', None)
+#
+#     parentid = request.form.get('parentid', None)
+#
+#     # 20231229 xiaojuzi
+#     courseid = request.form.get('courseid', None)
+#
+#     # if not gametype:
+#     #     return jsonify(ret_data(PARAMS_ERROR))
+#
+#     #if parentid is None:
+#         #return jsonify(ret_data(PARAMS_ERROR))
+#
+#     #20231229 xiaojuzi
+#     mqttPushAnswerToKeyBoard(parentid,gametype,answer,courseid)
+#
+#     return jsonify(ret_data(SUCCESS))
 
 
 #根据课程id获取该课程的对应的问题和答案 xiaojuzi v2 20231106

@@ -137,7 +137,7 @@ def insert_data(msg):
     answer_match = re.search(r"answer:'(.*?)'", message)
     parentid_match = re.search(r"parentid:'(.*?)'", message)
 
-    if not device_match or not title_match :
+    if not device_match or not title_match:
         return None
 
     device = device_match.group(1)

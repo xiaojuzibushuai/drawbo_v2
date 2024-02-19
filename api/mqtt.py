@@ -597,60 +597,71 @@ def getKeyboardDataImpl():
 
     return jsonify(ret_data(SUCCESS,data=None))
 
-# @mqtt_api.route('/mqttPushAnswerToKeyBoard', methods=['POST'])
+@mqtt_api.route('/mqttPushAnswerToKeyBoard', methods=['POST'])
 # xiaojuzi 20231030 给键盘推送数据 update by xiaojuzi 20240104 更新 先回退旧版本
-# def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str,deviceid: str,courseid=None):
-#
-#     logging.info(' gametype: %s , answer: %s ,parentid: %s ,deviceid %s ,courseid %s' % (gametype, answer,parentid,deviceid,courseid))
-#
-#     if not gametype or not answer or not parentid or not deviceid:
-#         return jsonify(ret_data(PARAMS_ERROR))
-#
-#     #20240104 xiaojuzi v2 更新主题方式
-#     ed = ExternalDevice.query.filter_by(deviceid=deviceid).first()
-#
-#     if not ed:
-#         return jsonify(ret_data(PARAMS_ERROR))
-#
-#     # topic = '/keyboard/answer/'
-#
-#     #20231121 xiaojuzi v2 数据面板修改游戏类型
-#     push_json = f"-{parentid}-{gametype}{answer}-{courseid}"
-#
-#     logging.info("设备主题：%s,游戏类型及其答案更新：%s " % (ed.topic,push_json))
-#
-#     errcode = send_external_message(push_json,ed.topic)
-#
-#     return jsonify(ret_data(errcode))
+def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str,deviceid: str,courseid=None):
 
-#回退版本待删除 20240104 xiaojuzi v2
-def mqttPushAnswerToKeyBoard(parentid=None,gametype=None,answer=None,courseid=None):
+    logging.info(' gametype: %s , answer: %s ,parentid: %s ,deviceid %s ,courseid %s' % (gametype, answer,parentid,deviceid,courseid))
 
-    # if not gametype:
+    # if not gametype or not answer or not parentid or not deviceid:
     #     return jsonify(ret_data(PARAMS_ERROR))
 
-    # if parentid is None:
-    #     return jsonify(ret_data(PARAMS_ERROR))
+    #20240219 更改  xiaojuzi
+    if not deviceid:
+        return jsonify(ret_data(PARAMS_ERROR))
 
-    topic = '/keyboard/answer/'
-
-    #20231121 xiaojuzi v2 数据面板修改游戏类型
-    #临时解决 图生图游戏默认正确 20240205 xiaojuzi v2
     if not answer:
         answer = '0'
+    if not gametype:
+        gametype = None
+    if not parentid:
+        parentid = None
 
-    # if not gametype:
-    #     gametype=''
-    # if not courseid:
-    #     courseid=''
+    #20240104 xiaojuzi v2 更新主题方式
+    ed = ExternalDevice.query.filter_by(deviceid=deviceid).first()
 
+    if not ed:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    # topic = '/keyboard/answer/'
+
+    #20231121 xiaojuzi v2 数据面板修改游戏类型
     push_json = f"-{parentid}-{gametype}{answer}-{courseid}"
 
-    logging.info("游戏类型及其答案更新：" + push_json)
+    logging.info("设备主题：%s,游戏类型及其答案更新：%s " % (ed.topic,push_json))
 
-    errcode = send_external_message(push_json,topic)
+    errcode = send_external_message(push_json,ed.topic)
 
     return jsonify(ret_data(errcode))
+
+#回退版本待删除 20240104 xiaojuzi v2
+# def mqttPushAnswerToKeyBoard(parentid=None,gametype=None,answer=None,courseid=None):
+#
+#     # if not gametype:
+#     #     return jsonify(ret_data(PARAMS_ERROR))
+#
+#     # if parentid is None:
+#     #     return jsonify(ret_data(PARAMS_ERROR))
+#
+#     topic = '/keyboard/answer/'
+#
+#     #20231121 xiaojuzi v2 数据面板修改游戏类型
+#     #临时解决 图生图游戏默认正确 20240205 xiaojuzi v2
+#     if not answer:
+#         answer = '0'
+#
+#     # if not gametype:
+#     #     gametype=''
+#     # if not courseid:
+#     #     courseid=''
+#
+#     push_json = f"-{parentid}-{gametype}{answer}-{courseid}"
+#
+#     logging.info("游戏类型及其答案更新：" + push_json)
+#
+#     errcode = send_external_message(push_json,topic)
+#
+#     return jsonify(ret_data(errcode))
 
 
 @mqtt_api.route('/mqttPushCustomPictureDataImpl', methods=['POST'])
