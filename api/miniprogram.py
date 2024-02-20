@@ -3375,7 +3375,7 @@ def getUnbindExternalDevice():
         return jsonify(ret_data(SUCCESS, data=device_data))
 
 
-#外接多设备创建 xiaojuzi v2 20231024
+#外接多设备创建 外设新增 创建外设 xiaojuzi v2 20231024
 @miniprogram_api.route('/createExternalDevice', methods=['POST'])
 @jwt_required()
 # @decorator_sign
