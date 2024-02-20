@@ -79,7 +79,7 @@ ERROR_CODE = {
     PHONE_IS_USE: '手机号已经登记过',
     PHONE_OR_CODE_ERROR: '手机号或验证码错误',
     UNBIND_DEVICE: '未绑定设备',
-    DEVICE_NOT_FIND: '设备不存在',
+    DEVICE_NOT_FIND: '设备不存在或不在线',
     REPEAT_BIND_DEVICE: '重复绑定设备',
     FILE_NOT_FOUND_ERROR: '文件不存在',
     APIKEY_NOT_EQUAL: 'apikey不匹配',
