@@ -22,6 +22,7 @@ from sqlalchemy import func, cast, Integer, or_, and_, not_
 
 from api.auth import jwt_redis_blocklist
 from api.mqtt import mqtt_push_wakeword_data, mqttPushAnswerToKeyBoard, get_mqtt_push_volume, get_mqtt_push_direction
+from api.web_back import getDeviceListBySceneId
 from config import HOST, APPSECRET, APPID, SignName, LoginTemplateCode, JWT_ACCESS_TOKEN_EXPIRES, SMS_EXPIRE_TIME, \
     DEVICE_EXPIRE_TIME
 from models.course_question import CourseQuestion
@@ -3744,12 +3745,27 @@ def tempPushAnswerToKeyBoard():
     # 20231229 xiaojuzi
     courseid = request.form.get('courseid', None)
 
-    #20240219 更改  xiaojuzi
-    #20231229 xiaojuzi
-    #20240104 xiaojuzi v2 逻辑修改 将对在上课的画小宇设备绑定的键盘进行对点发送数据
+    #20240220 xiaojuzi 新增场景逻辑
+    sceneid = request.form.get('sceneid')
+
     openid = current_user['openid']
-    #获取用户绑定且选择在线的画小宇设备
-    device_list = getDeviceByOpenid(openid)
+
+    device_list = None
+
+    #有就定向 没有群发 兼容小程序群发测试 20240220 xiaojuzi
+    if sceneid:
+        sceneid = json.loads(sceneid)
+
+        device_list = getDeviceListBySceneId(sceneid)
+
+    else:
+
+        #20240219 更改  xiaojuzi
+        #20231229 xiaojuzi
+        #20240104 xiaojuzi v2 逻辑修改 将对在上课的画小宇设备绑定的键盘进行对点发送数据
+
+        #获取用户绑定且选择在线的画小宇设备
+        device_list = getDeviceByOpenid(openid)
 
     if not device_list:
         return jsonify(ret_data(UNBIND_DEVICE))
