@@ -22,7 +22,7 @@ from sqlalchemy import func, cast, Integer, or_, and_, not_
 
 from api.auth import jwt_redis_blocklist
 from api.mqtt import mqtt_push_wakeword_data, mqttPushAnswerToKeyBoard, get_mqtt_push_volume, get_mqtt_push_direction
-from api.web_back import getDeviceListBySceneId
+
 from config import HOST, APPSECRET, APPID, SignName, LoginTemplateCode, JWT_ACCESS_TOKEN_EXPIRES, SMS_EXPIRE_TIME, \
     DEVICE_EXPIRE_TIME
 from models.course_question import CourseQuestion
@@ -3754,6 +3754,7 @@ def tempPushAnswerToKeyBoard():
 
     #有就定向 没有群发 兼容小程序群发测试 20240220 xiaojuzi
     if sceneid:
+
         sceneid = json.loads(sceneid)
 
         device_list = getDeviceListBySceneId(sceneid)
@@ -3911,6 +3912,32 @@ def updateExternalDevceName():
         return jsonify(ret_data(SUCCESS, data='操作成功'))
 
     return jsonify(ret_data(UNBIND_DEVICE))
+
+
+#根据用户选择的场景id给该用户场景下的画小宇设备进行视频交互 20240131 xiaojuzi
+def getDeviceListBySceneId(sceneids: list) -> list:
+
+    device_list = []
+    for sceneid in sceneids:
+
+        user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+
+        if not user_scene:
+            continue
+
+        # 查询用户在此场景下的设备id
+        devices = User_Device.query.filter_by(userid=user_scene.userid, sceneid=user_scene.id).all()
+
+        if not devices:
+            continue
+
+        for device in devices:
+            device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
+            if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+                device_list.append(device1)
+
+    return device_list
 
 
 # 外接多设备与画小宇设备连接管理 获取用户画小宇设备绑定的外设列表 xiaojuzi v2 20231026

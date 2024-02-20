@@ -25,7 +25,7 @@ from sqlalchemy import func, cast, Integer
 
 from api.auth import jwt_redis_blocklist
 from api.miniprogram import validate_phone_number, generate_nickname, sendSms, validate_password, getDeviceByOpenid, \
-    getUserSceneStrategy
+    getUserSceneStrategy, getDeviceListBySceneId
 from api.mqtt import sortDeviceByMaster
 from config import REDIS_HOST, REDIS_DB, REDIS_PORT, oss_access_key_id, oss_access_key_secret, oss_bucket_name, \
     oss_endpoint, ffmpeg_path, ffprobe_path, HOST, JWT_ACCESS_TOKEN_EXPIRES, cdn_oss_url, SMS_EXPIRE_TIME, \
@@ -1781,28 +1781,3 @@ def updateCourseVideoByCourseId():
 
     return jsonify(ret_data(SUCCESS, data='该课程视频观看次数减少成功！'))
 
-
-#根据用户选择的场景id给该用户场景下的画小宇设备进行视频交互 20240131 xiaojuzi
-def getDeviceListBySceneId(sceneids: list) -> list:
-
-    device_list = []
-    for sceneid in sceneids:
-
-        user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
-
-        if not user_scene:
-            continue
-
-        # 查询用户在此场景下的设备id
-        devices = User_Device.query.filter_by(userid=user_scene.userid, sceneid=user_scene.id).all()
-
-        if not devices:
-            continue
-
-        for device in devices:
-            device1 = Device.query.filter_by(deviceid=device.deviceid).first()
-
-            if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
-                device_list.append(device1)
-
-    return device_list
