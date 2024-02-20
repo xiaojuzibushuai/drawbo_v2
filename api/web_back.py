@@ -1301,13 +1301,17 @@ def videoAutoPushDatToDevice():
 
     url = request.form.get('url', None)
     #20240204 xiaojuzi v2  修改
-    sceneid = request.form.getlist('sceneid')
+    sceneid = request.form.get('sceneid')
 
     if not url or not sceneid:
         return jsonify(ret_data(PARAMS_ERROR))
 
     #updateby xiaojuzi v2 20240131
+
     openid = current_user['openid']
+
+    #20240220 xiaojuzi 修改前端传递格式
+    sceneid = json.loads(sceneid)
 
     device_list = getDeviceListBySceneId(sceneid)
 
