@@ -634,35 +634,6 @@ def mqttPushAnswerToKeyBoard(gametype :str,answer :str,parentid: str,deviceid: s
 
     return jsonify(ret_data(errcode))
 
-#回退版本待删除 20240104 xiaojuzi v2
-# def mqttPushAnswerToKeyBoard(parentid=None,gametype=None,answer=None,courseid=None):
-#
-#     # if not gametype:
-#     #     return jsonify(ret_data(PARAMS_ERROR))
-#
-#     # if parentid is None:
-#     #     return jsonify(ret_data(PARAMS_ERROR))
-#
-#     topic = '/keyboard/answer/'
-#
-#     #20231121 xiaojuzi v2 数据面板修改游戏类型
-#     #临时解决 图生图游戏默认正确 20240205 xiaojuzi v2
-#     if not answer:
-#         answer = '0'
-#
-#     # if not gametype:
-#     #     gametype=''
-#     # if not courseid:
-#     #     courseid=''
-#
-#     push_json = f"-{parentid}-{gametype}{answer}-{courseid}"
-#
-#     logging.info("游戏类型及其答案更新：" + push_json)
-#
-#     errcode = send_external_message(push_json,topic)
-#
-#     return jsonify(ret_data(errcode))
-
 
 @mqtt_api.route('/mqttPushCustomPictureDataImpl', methods=['POST'])
 #封装实现 外部接口 非小程序接口 xiaojuzi 20231027 白板画画传到画小宇设备上画画

@@ -218,7 +218,7 @@ def loginByPassword():
     #新增默认用户名 20231207 xiaojuzi v2 (避免v1已注册用户不生成用户名)
     if not user.nickname:
         user.nickname = generate_nickname()
-        db.session.commit()
+        # db.session.commit()
 
     #校验密码 20231202 xiaojuzi v2
     is_valid = check_password(password, user.password)
@@ -303,10 +303,9 @@ def register():
                 #兼容v1版本的默认注册 xiaojuzi v2 20231129
                 user1 = User.query.filter_by(openid=openid).first()
                 if user1:
-                    # #（20231215暂时这样待修改）
-                    # if user1.register_phone:
-                    #     if user1.register_phone!= register_phone:
-                    #         return jsonify(ret_data(PHONE_IS_NOT_MATCH))
+                    #（20231215暂时这样待修改） 一个微信号不能帮别人注册
+                    if user1.register_phone:
+                        return jsonify(ret_data(PHONE_IS_NOT_MATCH))
                     # else:
                     #     user1.register_phone = register_phone
 
@@ -1353,9 +1352,17 @@ def userSceneShareBindDevice():
                 else:
 
                     ed = ExternalDevice.query.filter_by(deviceid=share_code.deviceid).first()
-                    ued2 = UserExternalDevice(userid=userid, deviceid=share_code.deviceid, is_choose=True,
-                                              sceneid=dg3.id, status=1, d_type=ed.d_type,
-                                              shareby_userid=share_code.userid, share_code=share_code.code)
+
+                    #20240221 xiaojuzi v2 新增逻辑 在分享绑定时如果新分享绑的外设会查看分享人是否把这个键盘绑定了画小宇有就同样绑定上画小宇
+                    if ued1.external_deviceid:
+
+                        ued2 = UserExternalDevice(userid=userid, deviceid=share_code.deviceid,external_deviceid=ued1.external_deviceid,is_choose=True,
+                                                  sceneid=dg3.id, status=1, d_type=ed.d_type,
+                                                  shareby_userid=share_code.userid, share_code=share_code.code)
+                    else:
+                        ued2 = UserExternalDevice(userid=userid, deviceid=share_code.deviceid, is_choose=True,
+                                                  sceneid=dg3.id, status=1, d_type=ed.d_type,
+                                                  shareby_userid=share_code.userid, share_code=share_code.code)
                     db.session.add(ued2)
 
         db.session.commit()
@@ -1533,16 +1540,19 @@ def deleteUserSceneShareCodeBindUser():
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     logging.info('deleteUserSceneShareCodeBindUser api')
-    share_userid = request.form.get('share_userid')
+    # share_userid = request.form.get('share_userid')
 
     # 20240202 xiaojuzi v2 去掉openid的依赖性
-    userid = current_user['openid']
+    # userid = current_user['openid']
+    #20240221 xiaojuzi v2 修改逻辑
+    share_userid = current_user['openid']
+    userid = request.form.get('userid')
 
     if not share_userid or not userid:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    if share_userid == userid:
-        return jsonify(ret_data(SHARE_CODE_ERROR))
+    # if share_userid == userid:
+    #     return jsonify(ret_data(SHARE_CODE_ERROR))
 
     ud = User_Device.query.filter_by(userid=userid,shareby_userid=share_userid,status=1).all()
     if ud:
@@ -3093,7 +3103,7 @@ def bindExternalDevice():
     if device.d_type != 3:
         #查询是否重复绑定 一个画小宇设备只允许绑定一个类型的外设设备
         user_external_device = UserExternalDevice.query.filter_by(
-            userid=openid, external_deviceid=external_deviceid,d_type = device.d_type).first()
+             external_deviceid=external_deviceid,d_type = device.d_type).first()
 
         if user_external_device:
             return jsonify(ret_data(REPEAT_BIND_DEVICE))
@@ -3461,6 +3471,9 @@ def createExternalDevice():
     db.session.commit()
 
     return jsonify(ret_data(SUCCESS))
+
+
+
 
 @miniprogram_api.route('/unbindExternalDevice', methods=['POST'])
 @jwt_required()
@@ -3882,6 +3895,7 @@ def getCourseQuestionData():
 
 
 #修改外设名字 xiaojuzi v2 20231107
+#外接设备修改 xiaojuzi v2 20240221
 @miniprogram_api.route('/updateExternalDevceName', methods=['POST'])
 @jwt_required()
 # @decorator_sign
@@ -3897,7 +3911,9 @@ def updateExternalDevceName():
     deviceid = request.form.get('deviceid', None)
     devicename = request.form.get('devicename',None)
 
-    if not deviceid or not devicename:
+    d_type = request.form.get('d_type', None)
+
+    if not deviceid:
         return jsonify(ret_data(PARAMS_ERROR))
 
     device = UserExternalDevice.query.filter_by(userid=openid,deviceid=deviceid).first()
@@ -3906,7 +3922,15 @@ def updateExternalDevceName():
 
         device1 = ExternalDevice.query.filter_by(deviceid=device.deviceid).first()
 
-        device1.devicename = devicename
+        if devicename:
+            device1.devicename = devicename
+
+        if d_type:
+            device1.d_type = d_type
+
+            #绑定关系表同步更新
+            device.d_type = d_type
+
         db.session.commit()
 
         return jsonify(ret_data(SUCCESS, data='操作成功'))
