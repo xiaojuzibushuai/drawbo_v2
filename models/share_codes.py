@@ -17,8 +17,8 @@ class ShareCodes(db.Model):
 
     code = db.Column(db.String(20),default="")
 
-    # 权限级别 0 无权限 1 查看权限 2 控制权限 3 管理权限
-    permission_level = db.Column(db.Integer, default=0)
+    # 权限级别 1 使用权限 2 管理权限
+    permission_level = db.Column(db.Integer, default=1)
 
     #设备类型 1画小宇 2外设
     type = db.Column(db.Integer,default=0)

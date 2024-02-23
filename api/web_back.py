@@ -57,8 +57,8 @@ web_back_api = Blueprint('web_back', __name__, url_prefix='/api/v2/web_back')
 def test():
     sceneid = request.form.getlist('sceneid')
 
-    device_list = getDeviceListBySceneId(sceneid)
-    print(device_list)
+    # device_list = getDeviceListBySceneId(sceneid)
+    # print(device_list)
     #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
     return jsonify({'message': 'success'})
 
@@ -330,7 +330,7 @@ def getCourse():
         query_filter.append(Course.id == int(course_id))
 
     #20240130 为了方便测试将测试分类的课程全部允许播放 不做限制 xiaojuzi
-    # 以下没注释代码都得删掉
+    # 以下代码得删掉
     # 执行sql
     # course_query = db.session.query(Course).filter(*query_filter).group_by(Course.title)
     #
@@ -339,13 +339,18 @@ def getCourse():
     # if course_objs:
     #     course_list = model_to_dict(course_query)
     #     course_list = dict_fill_url(course_list, ['img_files'])
+    #     # 前端约定 更新该课程的video_files内的排序 20240223 xiaojuzi
     #     for cate in course_list:
     #         cate['video_count'] = 999
+    #         if cate['video_files']:
+    #             sorted_video_data = sorted(json.loads(cate['video_files']), key=lambda x: (int(x['episode']), -int(x['dpi'])))
+    #             cate['video_files'] = json.dumps(sorted_video_data)
     # else:
     #     course_list = []
     #
     # return jsonify(ret_data(SUCCESS, data=course_list))
 
+    #正确逻辑 xiaojuzi 20240223
     query_filter.append(User_Course.phone == phone)
     #执行sql
     course_query = db.session.query(*query_params).join(
@@ -357,6 +362,13 @@ def getCourse():
     if course_objs:
         course_list = model_to_dict(course_query)
         course_list = dict_fill_url(course_list, ['img_files'])
+
+        #前端约定 更新该课程的video_files内的排序 20240223 xiaojuzi
+        for cl in course_list:
+            if cl['video_files']:
+                sorted_video_data = sorted(json.loads(cl['video_files']), key=lambda x: (int(x['episode']), -int(x['dpi'])))
+                cl['video_files'] = json.dumps(sorted_video_data)
+
     else:
         course_list = []
 
@@ -1342,19 +1354,23 @@ def videoAutoPushDatToDevice():
             # print('文件保存成功')
 
         for device in device_list:
-            push_json = {
-                'type': 2,
-                'deviceid': device.deviceid,
-                'fromuser': openid,
-                'message': {
-                    'arg': file_name,
-                    'url': HOST + '/test/script_temp/'
+            #20240223 新需求更改 xiaojuzi 记录 添画需要判断过否在线
+            device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+            if (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+
+                push_json = {
+                    'type': 2,
+                    'deviceid': device.deviceid,
+                    'fromuser': openid,
+                    'message': {
+                        'arg': file_name,
+                        'url': HOST + '/test/script_temp/'
+                    }
                 }
-            }
 
-            logging.info(push_json)
+                logging.info(push_json)
 
-            errcode = send_message(push_json)
+                errcode = send_message(push_json)
 
         return jsonify(ret_data(errcode))
 

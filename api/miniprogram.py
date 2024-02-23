@@ -1975,9 +1975,14 @@ def get_wakeword():
     #20240202 xiaojuzi v2 保存到数据库中
     wakeword = Wakeword.query.all()
     data = model_to_dict(wakeword)
+    #更新数据结构 约束给前端 20240223  xiaojuzi
+    result = []
+    for d in data:
+        result.append(d['show_name'])
+
     # data = [['优优','慧慧','花花','玲玲','小爱','小芳']]
 
-    return jsonify(ret_data(SUCCESS, data=data))
+    return jsonify(ret_data(SUCCESS, data=[result]))
 
 
 @miniprogram_api.route('/addWakeword', methods=['POST'])
@@ -2032,11 +2037,12 @@ def deleteWakeword():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-    word_id = request.form.get('word_id',None)
-    if not word_id:
+    #更新前端约定
+    show_name = request.form.get('show_name',None)
+    if not show_name:
         return jsonify(ret_data(PARAMS_ERROR, data='参数错误'))
 
-    wakeword = Wakeword.query.filter_by(id=word_id).first()
+    wakeword = Wakeword.query.filter_by(show_name=show_name).first()
     if wakeword:
         db.session.delete(wakeword)
         db.session.commit()
@@ -2375,7 +2381,7 @@ def multipleUpdateDeviceDirection():
 @miniprogram_api.route('/device_unbind', methods=['POST'])
 @jwt_required()
 # @decorator_sign
-#设备解绑 xiaojuzi v2
+#画小宇设备解绑 xiaojuzi v2
 def device_unbind():
 
     current_user = get_jwt_identity()
@@ -2393,12 +2399,36 @@ def device_unbind():
     deviceid = request.form.get('deviceid', None)
 
     device = User_Device.query.filter_by(userid=openid,deviceid=deviceid).first()
+    #20240223 xiaojuzi  加入分享设备权限控制
     if device:
+        #删除用户画小宇绑定关系
         db.session.delete(device)
-        db.session.commit()
-        return jsonify(ret_data(SUCCESS,data='操作成功'))
+        devices = UserExternalDevice.query.filter_by(userid=openid, external_deviceid=deviceid).all()
+        if device.status == 0:
+            # 新逻辑 解绑画小宇就要同步解绑其绑定外设 20240223 xiaojuzi
+            if devices:
+                for d in devices:
+                    d.external_deviceid = None
+        else:
+            sc = ShareCodes.query.filter_by(userid=device.shareby_userid,code=device.share_code).first()
+            if sc.permission_level == 1:
+                # 新逻辑 自动解绑分享绑定的画小宇就要同步解绑其分享机器对应的绑定外设 20240223 xiaojuzi
+                if devices:
+                    for d in devices:
+                        if d.status == 0:
+                            d.external_deviceid = None
+                        else:
+                            db.session.delete(d)
+            elif sc.permission_level == 2:
+                # 新逻辑 解绑画小宇就要同步解绑其绑定外设 20240223 xiaojuzi
+                if devices:
+                    for d in devices:
+                        d.external_deviceid = None
 
-    return jsonify(ret_data(UNBIND_DEVICE))
+    db.session.commit()
+
+    return jsonify(ret_data(SUCCESS,data='操作成功'))
+
 
 
 @miniprogram_api.route('/count_choose_online_device', methods=['POST'])
@@ -3778,8 +3808,10 @@ def tempPushAnswerToKeyBoard():
         #20231229 xiaojuzi
         #20240104 xiaojuzi v2 逻辑修改 将对在上课的画小宇设备绑定的键盘进行对点发送数据
 
-        #获取用户绑定且选择在线的画小宇设备
-        device_list = getDeviceByOpenid(openid)
+        #获取用户绑定的全部画小宇设备 20240223 xiaojuzi
+        device_list = getAllDeviceByOpenid(openid)
+
+        # device_list = getDeviceByOpenid(openid)
 
     if not device_list:
         return jsonify(ret_data(UNBIND_DEVICE))
@@ -3919,24 +3951,67 @@ def updateExternalDevceName():
     device = UserExternalDevice.query.filter_by(userid=openid,deviceid=deviceid).first()
 
     if device:
+        #加入分享设备权限控制 20240223 xiaojuzi
+        if device.status == 0:
+            result = updateExternalDevceProperty(device,devicename,d_type)
 
-        device1 = ExternalDevice.query.filter_by(deviceid=device.deviceid).first()
+            if result == 0:
+                return jsonify(ret_data(SUCCESS, data='操作成功'))
+            else:
+                return jsonify(ret_data(UPDATE_EXTERNAL_ERROR,data=result))
 
-        if devicename:
-            device1.devicename = devicename
+        else:
+            sc = ShareCodes.query.filter_by(userid=device.shareby_userid,code=device.share_code).first()
+            if sc.permission_level == 1:
+                return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+            elif sc.permission_level == 2:
+                result = updateExternalDevceProperty(device, devicename, d_type)
 
-        if d_type:
-            device1.d_type = d_type
-
-            #绑定关系表同步更新
-            device.d_type = d_type
-
-        db.session.commit()
-
-        return jsonify(ret_data(SUCCESS, data='操作成功'))
+                if result == 0:
+                    return jsonify(ret_data(SUCCESS, data='操作成功'))
+                else:
+                    return jsonify(ret_data(UPDATE_EXTERNAL_ERROR, data=result))
 
     return jsonify(ret_data(UNBIND_DEVICE))
 
+# 更改外设属性方法 有权限时更改外设属性方法 xiaojuzi 20240223
+def updateExternalDevceProperty(device :UserExternalDevice,devicename,d_type):
+
+    device1 = ExternalDevice.query.filter_by(deviceid=device.deviceid).first()
+
+    if devicename:
+        device1.devicename = devicename
+
+    if d_type:
+        if d_type != 3:
+            # 先判断是否这个外设绑定了画小宇 是的话先解绑
+            ud1 = UserExternalDevice.query.filter_by(deviceid=device.deviceid).all()
+            for de in ud1:
+                if de.external_deviceid:
+                    st = f'修改外设属性失败，与画小宇设备号为:{de.external_deviceid}在绑定，请先解绑'
+                    logging.info(st)
+                    return st
+
+                # 绑定关系表同步更新
+                de.d_type = d_type
+            #键盘要更改主题
+            if d_type == 2:
+                topic = '/keyboard/answer/%s' % str(device1.deviceid)
+                device1.topic = topic
+
+            device1.d_type = d_type
+
+        else:
+            ud1 = UserExternalDevice.query.filter_by(deviceid=device.deviceid).all()
+            for de in ud1:
+                # 绑定关系表同步更新
+                de.d_type = d_type
+
+            device1.d_type = d_type
+
+    db.session.commit()
+
+    return SUCCESS
 
 #根据用户选择的场景id给该用户场景下的画小宇设备进行视频交互 20240131 xiaojuzi
 def getDeviceListBySceneId(sceneids: list) -> list:
@@ -3958,8 +4033,9 @@ def getDeviceListBySceneId(sceneids: list) -> list:
         for device in devices:
             device1 = Device.query.filter_by(deviceid=device.deviceid).first()
 
-            if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
-                device_list.append(device1)
+            # 20240223 xiaojuzi 需求更新 要求只要绑定就给发
+            # if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+            device_list.append(device1)
 
     return device_list
 
@@ -4020,6 +4096,28 @@ def getExternalDevice(openid: str,deviceid: str):
     else:
         return device_data
 
+#20240223  xiaojuzi v2  需求需要 web端需要给所有设备发送键盘指令
+def getAllDeviceByOpenid(openid: str) -> list:
+
+    user = User.query.filter_by(openid=openid).first()
+
+    if not user:
+        return None
+
+    # 查询用户已经绑定的设备id
+    devices = User_Device.query.filter_by(userid=openid).all()
+
+    if not devices:
+        return None
+
+    device_list = []
+
+    for device in devices:
+        device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+        device_list.append(device1)
+
+    return device_list
+
 
 # 通过openid判断并获取到用户选择且在线的设备 xiaojuzi 2023923
 def getDeviceByOpenid(openid: str) -> list:
@@ -4039,6 +4137,7 @@ def getDeviceByOpenid(openid: str) -> list:
 
         for device in devices:
             device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
             if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
                 device_list.append(device1)
 

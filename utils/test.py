@@ -17,7 +17,6 @@ from models import device
 
 import bcrypt
 
-from utils.tools import create_noncestr, video_resource_encrypt, video_resource_decrypt
 
 from cryptography.fernet import Fernet
 import base64
@@ -235,12 +234,24 @@ def test11():
 
     print(default_command)
 
+def test12():
+
+    video_data1 = [{"video_base_url": "http://cdn.course.v5ky.com/7/5/7508ef1e417e5b799032131c66e45e93/original", "video_ts_list": 263, "episode": "2", "dpi": "4"}]
+    video_data2 =[{"video_base_url": "http://cdn.course.v5ky.com/7/5/7508ef1e417e5b799032131c66e45e93/original", "video_ts_list": 263, "episode": "2", "dpi": "4"},
+                 {"video_base_url": "http://cdn.course.v5ky.com/7/5/7508ef1e417e5b799032131c66e45e93/original","video_ts_list": 263, "episode": "2", "dpi": "5"},
+           {"video_base_url": "http://cdn.course.v5ky.com/3/8/381a922ba72dedcfaab840d1a19bb300/original", "video_ts_list": 165, "episode": "1", "dpi": "5"}]
+    video = [{'video_files':video_data1},{'video_files':video_data2}]
+    # sorted_video_data = sorted(video_data, key=lambda x: (int(x['episode']), -int(x['dpi'])))
+    for cl in video:
+        sorted_video_data = sorted(cl['video_files'], key=lambda x: (int(x['episode']), -int(x['dpi'])))
+        cl['video_files'] = sorted_video_data
+    print(video)
 
 
 if __name__ == '__main__':
     ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
     print(os.path.dirname(ffmpeg_path))
-    test1()
+    test12()
     # test8()
     # test9()
     # test10()
