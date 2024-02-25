@@ -497,7 +497,7 @@ def updateUserDetail():
     #头像获取 20231208 xiaojuzi v2
     f = request.files.get('avatar')
     if f:
-        extension = f.filename.split('.')[1].lower()
+        extension = f.filename.split('.')[-1].lower()
         new_filename = str(user.id) + '_' + str(int(time.time())) + '.' + extension
 
         if extension not in app.config['ALLOWED_EXTENSIONS']:
@@ -1553,14 +1553,17 @@ def deleteUserSceneShareCodeBindUser():
 
     # if share_userid == userid:
     #     return jsonify(ret_data(SHARE_CODE_ERROR))
-
+    #20240225 xiaojuzi v2 暂不对分享表里过期码进行删除 TODO
     ud = User_Device.query.filter_by(userid=userid,shareby_userid=share_userid,status=1).all()
     if ud:
         for u in ud:
+
             db.session.delete(u)
+
     ued = UserExternalDevice.query.filter_by(userid=userid,shareby_userid=share_userid,status=1).all()
     if ued:
         for ue in ued:
+
             db.session.delete(ue)
 
     db.session.commit()
@@ -1953,9 +1956,24 @@ def update_devicname():
     device = User_Device.query.filter_by(userid=openid,deviceid=deviceid).first()
 
     if device:
-        device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+        # 加入设备分享权限控制 xiaojuzi 20240225
+        if device.status == 0:
 
-        device1.devicename = devicename
+            device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
+            device1.devicename = devicename
+
+        else:
+            sc = ShareCodes.query.filter_by(userid=device.shareby_userid, code=device.share_code).first()
+            if sc.permission_level == 1:
+                return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+            elif sc.permission_level == 2:
+                device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
+                device1.devicename = devicename
+            else:
+                return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+
         db.session.commit()
 
         return jsonify(ret_data(SUCCESS, data='操作成功'))
@@ -2125,32 +2143,73 @@ def updateDeviceById():
     if not device:
         return jsonify(ret_data(UNBIND_DEVICE))
 
-    device1 = Device.query.filter_by(deviceid=deviceid).first()
+    #加入设备分享权限控制 xiaojuzi 20240225
+    if device.status == 0:
 
-    # 更新字段
-    city = request.form.get('city', None)
-    if city:
-        device1.city = city
-    school = request.form.get('school', None)
-    if school:
-        device1.school = school
-    d_class = request.form.get('class', None)
-    if d_class:
-        device1.d_class = d_class
-    phone = request.form.get('phone', None)
-    if phone:
-        device1.phone = phone
-    if city or school or d_class or phone:
-        db.session.commit()
+        device1 = Device.query.filter_by(deviceid=deviceid).first()
 
-    device1_info = model_to_dict(device1)
+        # 更新字段
+        city = request.form.get('city', None)
+        if city:
+            device1.city = city
+        school = request.form.get('school', None)
+        if school:
+            device1.school = school
+        d_class = request.form.get('class', None)
+        if d_class:
+            device1.d_class = d_class
+        phone = request.form.get('phone', None)
+        if phone:
+            device1.phone = phone
+        if city or school or d_class or phone:
+            db.session.commit()
 
-    device1_info = dict_drop_field(device1_info, ['apikey', 'productid', 'clientid', 'mac', 'remark', 'd_type', 'status',
-                                                'create_at', 'topic', 'is_auth', 'qrcode_suffix_data', 'bind_type',
-                                                'course', 'music_id', 'menu_id', 'status_update'])
-    device1_info = change_field_key(device1_info, {'d_class': 'class'})
+        device1_info = model_to_dict(device1)
 
-    return jsonify(ret_data(SUCCESS, data=device1_info))
+        device1_info = dict_drop_field(device1_info, ['apikey', 'productid', 'clientid', 'mac', 'remark', 'd_type', 'status',
+                                                    'create_at', 'topic', 'is_auth', 'qrcode_suffix_data', 'bind_type',
+                                                    'course', 'music_id', 'menu_id', 'status_update'])
+        device1_info = change_field_key(device1_info, {'d_class': 'class'})
+
+        return jsonify(ret_data(SUCCESS, data=device1_info))
+
+    else:
+        sc = ShareCodes.query.filter_by(userid=device.shareby_userid, code=device.share_code).first()
+        if sc.permission_level == 1:
+            return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+        elif sc.permission_level == 2:
+
+            device1 = Device.query.filter_by(deviceid=deviceid).first()
+
+            # 更新字段
+            city = request.form.get('city', None)
+            if city:
+                device1.city = city
+            school = request.form.get('school', None)
+            if school:
+                device1.school = school
+            d_class = request.form.get('class', None)
+            if d_class:
+                device1.d_class = d_class
+            phone = request.form.get('phone', None)
+            if phone:
+                device1.phone = phone
+            if city or school or d_class or phone:
+                db.session.commit()
+
+            device1_info = model_to_dict(device1)
+
+            device1_info = dict_drop_field(device1_info,
+                                           ['apikey', 'productid', 'clientid', 'mac', 'remark', 'd_type', 'status',
+                                            'create_at', 'topic', 'is_auth', 'qrcode_suffix_data', 'bind_type',
+                                            'course', 'music_id', 'menu_id', 'status_update'])
+            device1_info = change_field_key(device1_info, {'d_class': 'class'})
+
+            return jsonify(ret_data(SUCCESS, data=device1_info))
+
+        else:
+            return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+
 
 
 @miniprogram_api.route('/update_wakeword', methods=['POST'])
@@ -2175,9 +2234,15 @@ def update_wakeword():
         return jsonify(ret_data(PARAMS_ERROR))
 
     device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
-    device1 = Device.query.filter_by(deviceid=deviceid).first()
 
-    if device:
+    if not device:
+        return jsonify(ret_data(UNBIND_DEVICE))
+
+    # 加入设备分享权限控制 xiaojuzi 20240225
+    if device.status == 0:
+
+        device1 = Device.query.filter_by(deviceid=deviceid).first()
+
         #在进一步行判断
         if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
 
@@ -2193,7 +2258,29 @@ def update_wakeword():
 
         return jsonify(ret_data(SUCCESS, data="设备未选择或未在线"))
 
-    return jsonify(ret_data(UNBIND_DEVICE))
+    else:
+        sc = ShareCodes.query.filter_by(userid=device.shareby_userid, code=device.share_code).first()
+        if sc.permission_level == 1:
+            return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+        elif sc.permission_level == 2:
+            device1 = Device.query.filter_by(deviceid=deviceid).first()
+            # 在进一步行判断
+            if (device.is_choose == True) & (
+                    int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+                device1.wakeword = wakeword
+
+                result = mqtt_push_wakeword_data(openid, deviceid, wakeword)
+
+                logging.info('硬件发送下载唤醒词数据接口 :%s' % result)
+
+                db.session.commit()
+
+                return jsonify(ret_data(SUCCESS, data='操作成功'))
+
+            return jsonify(ret_data(SUCCESS, data="设备未选择或未在线"))
+        else:
+            return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+
 
 @miniprogram_api.route('/choose_device_master', methods=['POST'])
 @jwt_required()
@@ -3108,9 +3195,11 @@ def getUserDeviceid():
 @jwt_required()
 # @decorator_sign
 def bindExternalDevice():
+
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
@@ -3130,64 +3219,110 @@ def bindExternalDevice():
     if not (device or external_device):
         return jsonify(ret_data(UNBIND_DEVICE))
 
-    if device.d_type != 3:
-        #查询是否重复绑定 一个画小宇设备只允许绑定一个类型的外设设备
-        user_external_device = UserExternalDevice.query.filter_by(
-             external_deviceid=external_deviceid,d_type = device.d_type).first()
+    #20240225 加入设备分享权限控制 xiaojuzi
+    ued = UserExternalDevice.query.filter_by(userid=openid, deviceid=deviceid).first()
+    if not ued:
+        return jsonify(ret_data(UNBIND_DEVICE))
 
-        if user_external_device:
-            return jsonify(ret_data(REPEAT_BIND_DEVICE))
+    if ued.status == 0:
+        if device.d_type != 3:
+            # 查询是否重复绑定 一个画小宇设备只允许绑定一个类型的外设设备
+            user_external_device = UserExternalDevice.query.filter_by(
+                external_deviceid=external_deviceid, d_type=device.d_type).first()
 
-        #一个投影等外设设备只允许绑定一个画小宇设备20231108 xiaojuzi
-        device1 = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
+            if user_external_device:
+                # 重复绑定
+                return jsonify(ret_data(REPEAT_BIND_DEVICE))
 
-        for de in device1:
-            if de.external_deviceid:
-                return jsonify(ret_data(REPEAT_BIND_DEVICE,data=f'已被画小宇设备号为:{de.external_deviceid}的绑定'))
+            # 一个投影等外设设备只允许绑定一个画小宇设备20231108 xiaojuzi
+            device1 = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
 
-        #进行绑定
-        user_external_device1 = UserExternalDevice.query.filter_by(userid=openid, deviceid = deviceid).first()
+            for de in device1:
+                if de.external_deviceid:
+                    return jsonify(
+                        ret_data(REPEAT_BIND_DEVICE, data=f'已被画小宇设备号为:{de.external_deviceid}的绑定'))
 
-        user_external_device1.external_deviceid = external_deviceid
-        user_external_device1.d_type = device.d_type
-        #更新绑定时间 20240204 xiaojuzi v2
-        user_external_device1.status_update = datetime.now()
+            # 进行绑定
 
-        # userExternalDevice = UserExternalDevice(userid = openid,
-        #                                         deviceid = deviceid,
-        #                                         external_deviceid = external_deviceid,
-        #                                         d_type=device.d_type
-        #                                         )
+            ued.external_deviceid = external_deviceid
+            ued.d_type = device.d_type
+            # 更新绑定时间 20240204 xiaojuzi v2
+            ued.status_update = datetime.now()
 
-        db.session.commit()
+            db.session.commit()
 
-        return jsonify(ret_data(SUCCESS))
+            return jsonify(ret_data(SUCCESS))
 
+        else:
+            user_external_device = UserExternalDevice.query.filter_by(
+                userid=openid, external_deviceid=external_deviceid, deviceid=deviceid).first()
+
+            if user_external_device:
+                return jsonify(ret_data(REPEAT_BIND_DEVICE))
+
+            # 进行绑定
+
+            ued.external_deviceid = external_deviceid
+            ued.d_type = device.d_type
+            # 更新绑定时间 20240204 xiaojuzi v2
+            ued.status_update = datetime.now()
+
+            db.session.commit()
+
+            return jsonify(ret_data(SUCCESS))
     else:
-        user_external_device = UserExternalDevice.query.filter_by(
-            userid=openid, external_deviceid=external_deviceid, deviceid = deviceid).first()
+        sc = ShareCodes.query.filter_by(userid=device.shareby_userid, code=device.share_code).first()
+        if sc.permission_level == 1:
+            return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+        elif sc.permission_level == 2:
+            if device.d_type != 3:
+                # 查询是否重复绑定 一个画小宇设备只允许绑定一个类型的外设设备
+                user_external_device = UserExternalDevice.query.filter_by(
+                    external_deviceid=external_deviceid, d_type=device.d_type).first()
 
-        if user_external_device:
-            return jsonify(ret_data(REPEAT_BIND_DEVICE))
+                if user_external_device:
+                    # 重复绑定
+                    return jsonify(ret_data(REPEAT_BIND_DEVICE))
 
-        # 进行绑定
+                # 一个投影等外设设备只允许绑定一个画小宇设备20231108 xiaojuzi
+                device1 = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
 
-        user_external_device1 = UserExternalDevice.query.filter_by(userid=openid, deviceid=deviceid).first()
+                for de in device1:
+                    if de.external_deviceid:
+                        return jsonify(
+                            ret_data(REPEAT_BIND_DEVICE, data=f'已被画小宇设备号为:{de.external_deviceid}的绑定'))
 
-        user_external_device1.external_deviceid = external_deviceid
-        user_external_device1.d_type = device.d_type
-        #更新绑定时间 20240204 xiaojuzi v2
-        user_external_device1.status_update = datetime.now()
+                # 进行绑定
 
-        # userExternalDevice = UserExternalDevice(userid=openid,
-        #                                         deviceid=deviceid,
-        #                                         external_deviceid=external_deviceid,
-        #                                         d_type=device.d_type
-        #                                         )
+                ued.external_deviceid = external_deviceid
+                ued.d_type = device.d_type
+                # 更新绑定时间 20240204 xiaojuzi v2
+                ued.status_update = datetime.now()
 
-        db.session.commit()
+                db.session.commit()
 
-        return jsonify(ret_data(SUCCESS))
+                return jsonify(ret_data(SUCCESS))
+
+            else:
+                user_external_device = UserExternalDevice.query.filter_by(
+                    userid=openid, external_deviceid=external_deviceid, deviceid=deviceid).first()
+
+                if user_external_device:
+                    return jsonify(ret_data(REPEAT_BIND_DEVICE))
+
+                # 进行绑定
+
+                ued.external_deviceid = external_deviceid
+                ued.d_type = device.d_type
+                # 更新绑定时间 20240204 xiaojuzi v2
+                ued.status_update = datetime.now()
+
+                db.session.commit()
+
+                return jsonify(ret_data(SUCCESS))
+        else:
+            return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+
 
 
 #外接多设备用户绑定外设查询 xiaojuzi v2 20231025
@@ -3503,13 +3638,12 @@ def createExternalDevice():
     return jsonify(ret_data(SUCCESS))
 
 
-
-
 @miniprogram_api.route('/unbindExternalDevice', methods=['POST'])
 @jwt_required()
 # @decorator_sign
 #外接设备解绑 xiaojuzi v2 20231025
 def unbindExternalDevice():
+
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
@@ -3527,8 +3661,29 @@ def unbindExternalDevice():
     #如果external_deviceid没有接收到说明用户需要只与外设进行解绑 20231025
     if external_deviceid:
         device = UserExternalDevice.query.filter_by(userid=openid,deviceid=deviceid,external_deviceid=external_deviceid).first()
+        #20240225 加入设备分享权限控制 xiaojuzi
         if device:
-            device.external_deviceid = None
+            if device.status == 0:
+                device.external_deviceid = None
+                # #新增逻辑 判断该设备是否是分享 20240225
+                # devices = UserExternalDevice.query.filter_by(deviceid=deviceid, external_deviceid=external_deviceid,shareby_userid=openid,status = 1).all()
+                # if devices:
+                #     for d in devices:
+                #         d.external_deviceid = None
+                #         #删除分享表里面的关系
+                #         sc = ShareCodes.query.filter_by(deviceid=d.deviceid,userid=d.shareby_userid, code=d.share_code).first()
+                #         if sc:
+                #             if (int(datetime.now().timestamp()) - sc.end_date.timestamp() <= 0):
+                #                 db.session.delete(sc)
+                #             else:
+                #                 #分享码过期先不管 TODO
+                #                 pass
+            else:
+                sc = ShareCodes.query.filter_by(userid=device.shareby_userid, code=device.share_code).first()
+                if sc.permission_level == 1:
+                    return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
+                elif sc.permission_level == 2:
+                    device.external_deviceid = None
 
             # db.session.delete(device)
             db.session.commit()
@@ -3538,10 +3693,12 @@ def unbindExternalDevice():
     else:
         # 解绑外设自动将与外设绑定的画小宇设备也给删除
         devices = UserExternalDevice.query.filter_by(userid=openid, deviceid=deviceid).all()
+
         if devices:
             for device in devices:
                 db.session.delete(device)
             db.session.commit()
+
             return jsonify(ret_data(SUCCESS, data='操作成功'))
 
         return jsonify(ret_data(UNBIND_DEVICE))
@@ -3951,7 +4108,7 @@ def updateExternalDevceName():
     device = UserExternalDevice.query.filter_by(userid=openid,deviceid=deviceid).first()
 
     if device:
-        #加入分享设备权限控制 20240223 xiaojuzi
+        #加入分享设备权限控制 20240225 xiaojuzi
         if device.status == 0:
             result = updateExternalDevceProperty(device,devicename,d_type)
 
@@ -3971,6 +4128,8 @@ def updateExternalDevceName():
                     return jsonify(ret_data(SUCCESS, data='操作成功'))
                 else:
                     return jsonify(ret_data(UPDATE_EXTERNAL_ERROR, data=result))
+            else:
+                return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
 
     return jsonify(ret_data(UNBIND_DEVICE))
 
