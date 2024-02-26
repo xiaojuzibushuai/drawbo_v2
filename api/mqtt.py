@@ -960,8 +960,8 @@ def testMqttPushGirlDataImpl():
 
     push_json = {
         'type': 2,
-        'deviceid': '80023FD00014',
-        'fromuser': 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc',
+        'deviceid': '80023FD00038',
+        'fromuser': 'oN3gn5JXs8x90pMys9wS3Y4oT-zk',
         'message': {
             # arg为文件夹名字  xiaojuzi 20231120
             'arg': arg,
@@ -981,8 +981,8 @@ def test1MqttPushGirlDataImpl():
 
     push_json = {
         'type': 2,
-        'deviceid': '80023FD00014',
-        'fromuser': 'oN3gn5BKNImmh6ZFA5YDFmbwlDcc',
+        'deviceid': '80023FD00038',
+        'fromuser': 'oN3gn5JXs8x90pMys9wS3Y4oT-zk',
         'message': {
             # arg为文件夹名字  xiaojuzi 20231120
             'arg': arg,
