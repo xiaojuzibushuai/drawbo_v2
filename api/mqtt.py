@@ -806,12 +806,16 @@ def mqttPushKeyImage():
     courseid = request.headers.get('courseid')
     number = request.headers.get('number')
 
-    if not deviceid or not courseid or not number:
+    #20240226 xiaojuzi 更新接收条件
+    gametype = request.headers.get('gametype')
+
+
+    if not deviceid or not courseid or not number or not gametype:
 
         return jsonify(ret_data(PARAMS_ERROR))
 
     deviceid = deviceid.replace(":", "")
-    logging.info('临时解析出mac地址：'+deviceid)
+    # logging.info('临时解析出mac地址：'+deviceid)
 
     #生成文件名
     # file_dir = create_noncestr(8)
@@ -841,7 +845,7 @@ def mqttPushKeyImage():
 
     # logging.info('drawbo:' + os.getenv('drawbo'))
     device = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
-    logging.info('device' + str(len(device)))
+    # logging.info('device' + str(len(device)))
 
     if not device:
         return jsonify(ret_data(UNBIND_DEVICE))
@@ -857,7 +861,8 @@ def mqttPushKeyImage():
                 if not os.path.exists(save_file_floder):
                     os.makedirs(save_file_floder)
 
-                option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid}&number={number}"
+                option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid}&number={number}&optionId={gametype}"
+                logging.info('mqttPushKeyImage发送的option_url：%s ' % option_url)
                 getOptionAndDownload(option_url,save_file_dat)
 
                 # 创建lrc文件
