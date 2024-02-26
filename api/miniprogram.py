@@ -1587,7 +1587,7 @@ def cancelUserAccount():
 
     phone = request.form.get('register_phone')
 
-    user = User.query.filter(or_(User.openid==openid,User.register_phone==phone)).first()
+    user = User.query.filter(or_(User.openid == openid,User.register_phone == phone)).first()
     #20231207 xiaojuzi 新增用户头像
     if user:
         logout_user = LogoutUser(openid=user.openid,register_phone=user.phone,

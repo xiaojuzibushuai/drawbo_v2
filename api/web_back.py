@@ -1335,9 +1335,9 @@ def videoAutoPushDatToDevice():
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
     #要保存的文件的文件夹
     save_file_folder = static_folder + f'/test/script_temp'
-    # file_name = ''.join(url.split('/')[-1].split('.')[0].split('-')[:-1])
     #更新新名字截取格式 20240225 xiaojuzi v2
-    file_name = ''.join(url.split('/')[-1].split('.')[0])
+    file_name = ''.join(url.split('/')[-1].split('.')[0].split('-')[:5])
+    # file_name = ''.join(url.split('/')[-1].split('.')[0])
     save_file_dat = os.path.join(save_file_folder,f'{file_name}.dat').replace("\\", "/")
     temp_file_lrc = os.path.join(save_file_folder,f'{file_name}.lrc').replace("\\", "/")
     # if not os.path.exists(save_file_dat):
