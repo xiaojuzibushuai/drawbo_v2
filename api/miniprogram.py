@@ -420,7 +420,7 @@ def logout():
 
     jti = get_jwt()['jti']
     ttype = get_jwt()["type"]
-    # 将令牌加入黑名单
+    # 将令牌加入黑名单 过期后自动删除
     jwt_redis_blocklist.set(jti,"",ex=JWT_ACCESS_TOKEN_EXPIRES)
 
     return jsonify(ret_data(SUCCESS,data=f"{ttype.capitalize()} token successfully revoked"))
