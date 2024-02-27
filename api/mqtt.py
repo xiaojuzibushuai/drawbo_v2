@@ -1724,8 +1724,10 @@ def getOptionAndDownload(url:str,save_path:str):
             # 如果请求成功，将文件内容写入本地文件
             with open(save_path, 'wb') as f:
                 f.write(response.content)
-                return True
+
                 # print('文件保存成功')
+                
+            return True
         else:
             logging.info("下载失败，状态码:%s" % response.status_code)
             return False
