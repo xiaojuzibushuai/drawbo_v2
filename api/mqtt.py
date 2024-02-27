@@ -863,7 +863,12 @@ def mqttPushKeyImage():
 
                 option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid}&number={number}&optionId={gametype}"
                 logging.info('mqttPushKeyImage发送的option_url：%s ' % option_url)
-                getOptionAndDownload(option_url,save_file_dat)
+
+                #xiaojuzi 20240227 增加校验
+                result1 = getOptionAndDownload(option_url,save_file_dat)
+
+                if not result1:
+                    return jsonify(ret_data(PARAMS_ERROR))
 
                 # 创建lrc文件
                 initAutoPictureFile(save_file_floder, init_lrc_file, lrc_data)
@@ -1707,17 +1712,24 @@ def getOptionAndDownload(url:str,save_path:str):
         # 处理返回的数据
         data = response.json()  # 使用 .json() 方法将返回的 JSON 数据转换为 Python 对象
         url = data['data']['url']
-        print("dat地址:"+url)  # 输出返回的数据
+        # print("dat地址:"+url)  # 输出返回的数据
 
         response = requests.get(url)
 
         if response.status_code == 200:
+            if not response.content:
+                logging.info("下载失败，数据为空！")
+                return False
+
             # 如果请求成功，将文件内容写入本地文件
             with open(save_path, 'wb') as f:
                 f.write(response.content)
-                print('文件保存成功')
+                return True
+                # print('文件保存成功')
         else:
-            print('下载失败，状态码:', response.status_code)
+            logging.info("下载失败，状态码:%s" % response.status_code)
+            return False
 
     else:
-        print("获取选项接口失败:", response.status_code)
+        logging.info("获取选项接口失败:%s" % response.status_code)
+        return False
