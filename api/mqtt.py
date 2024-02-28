@@ -802,15 +802,16 @@ def mqttPushCameraPictureDataImpl():
 #封装实现 外部接口 非小程序接口 xiaojuzi 20231115 按键获取后台dat传到画小宇设备上画画 dengshuibin
 def mqttPushKeyImage():
 
-    deviceid = request.headers.get('deviceid')
-    courseid = request.headers.get('courseid')
-    number = request.headers.get('number')
+    deviceid = request.headers.get('deviceid',None)
+    courseid = request.headers.get('courseid',None)
+    number = request.headers.get('number',None)
 
     #20240226 xiaojuzi 更新接收条件
-    gametype = request.headers.get('gametype')
+    gametype = request.headers.get('gametype',None)
 
+    optiontype = request.headers.get('parentid',None)
 
-    if not deviceid or not courseid or not number or not gametype:
+    if not deviceid:
 
         return jsonify(ret_data(PARAMS_ERROR))
 
@@ -861,7 +862,10 @@ def mqttPushKeyImage():
                 if not os.path.exists(save_file_floder):
                     os.makedirs(save_file_floder)
 
-                option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid}&number={number}&optionId={gametype}"
+                # option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid}&number={number}&optionId={gametype}"
+
+                option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid if courseid is not None else ''}&number={number if number is not None else ''}&sectionNo={gametype if gametype is not None else ''}&optionType={optiontype if optiontype is not None else ''}"
+
                 logging.info('mqttPushKeyImage发送的option_url：%s ' % option_url)
 
                 #xiaojuzi 20240227 增加校验
