@@ -1725,8 +1725,6 @@ def getOptionAndDownload(url:str,save_path:str):
             with open(save_path, 'wb') as f:
                 f.write(response.content)
 
-                # print('文件保存成功')
-                
             return True
         else:
             logging.info("下载失败，状态码:%s" % response.status_code)

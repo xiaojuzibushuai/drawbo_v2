@@ -84,7 +84,7 @@ def test_convert_image_to_dat(rotate,png_file_path,svg_file_path,gcode_file_path
 
 
 if __name__ == "__main__":
-    png_file_path = 'tmp_2a69.jpg'
+    png_file_path = '2.png'
     svg_file_path = 'test.svg'
     gcode_file_path = 'test.gcode'
     dat_file_path = 'test.dat'
