@@ -120,7 +120,7 @@ def convert_svg_to_gcode(inputPath: str,outputPath: str):
     "--register-pen=true",
     "--x-home=0",
     "--y-home=0",
-    "--num-copies=1",
+    "--num-copies=4",
     "--continuous=false",
     "--pause-on-layer-change=true",
     inputPath
