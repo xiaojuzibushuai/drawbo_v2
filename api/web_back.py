@@ -29,7 +29,7 @@ from api.miniprogram import validate_phone_number, generate_nickname, sendSms, v
 from api.mqtt import sortDeviceByMaster
 from config import REDIS_HOST, REDIS_DB, REDIS_PORT, oss_access_key_id, oss_access_key_secret, oss_bucket_name, \
     oss_endpoint, ffmpeg_path, ffprobe_path, HOST, JWT_ACCESS_TOKEN_EXPIRES, cdn_oss_url, SMS_EXPIRE_TIME, \
-    DEVICE_EXPIRE_TIME
+    DEVICE_EXPIRE_TIME, ADMIN_HOST
 from models.admin_user import AdminUser
 from models.course import Category, DeviceCategory, Course, DeviceCourse
 from models.course_audio import CourseAudio
@@ -45,7 +45,8 @@ from utils.OSSUploader import upload_file, bucket, delete_folder
 from utils.error_code import PARAMS_ERROR, PHONE_NUMBER_ERROR, PHONE_NOT_FIND, SUCCESS, PASSWORD_ERROR, SMS_SEND_ERROR, \
     USER_NOT_FIND, UNAUTHORIZED_ACCESS, VIDEO_UPLOAD_FAILED, SMS_CODE_ERROR, SMS_CODE_EXPIRE, \
     VIDEO_UPLOAD_NAME_REPEATED, DEVICE_NOT_FIND, VIDEO_FORMAT_ERROR, CHUNK_UPLOAD_EXIST, COURSE_UNBIND_VIDEO, \
-    VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT, VIDEO_UPLOAD_FAST_SUCCESS, VIDEO_IS_PROCESSING, SCENE_ERROR, LOGIN_ERROR
+    VIDEO_KEY_NOT_FIND, UNBIND_VIDEO_SCRIPT, VIDEO_UPLOAD_FAST_SUCCESS, VIDEO_IS_PROCESSING, SCENE_ERROR, LOGIN_ERROR, \
+    JSON_ERROR
 from utils.tools import ret_data, check_password, getUserIp, model_to_dict, dict_fill_url, get_location_by_ip, \
     video_resource_decrypt, video_resource_encrypt, paginate_data
 from utils.video_utils import generate_m3u8, test_generate_m3u8, get_ts_list, getVideoDpiPath
@@ -61,6 +62,17 @@ def test():
     # print(device_list)
     #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
     return jsonify({'message': 'success'})
+
+# 拦截请求并检查 Access Token 的过期时间 xiaojuzi v2 20240227
+# @web_back_api.before_request
+# def check_token_expiration():
+#     current_user = get_jwt_identity()
+#     if current_user is not None:
+#         expires = jwt.get_expires_in()
+#         if expires < 60:
+#             new_access_token = create_access_token(identity=current_user)
+#             # 更新用户的 Access Token
+#             jwt.set_access_cookies(new_access_token)
 
 
 #用户账号手机号密码登录接口  xiaojuzi v2 20231227
@@ -1798,4 +1810,77 @@ def updateCourseVideoByCourseId():
     db.session.commit()
 
     return jsonify(ret_data(SUCCESS, data='该课程视频观看次数减少成功！'))
+
+
+#获取所有图片分类 20240229 xiaojuzi v2
+@web_back_api.route('/getAllPictureCategory', methods=['POST'])
+@jwt_required()
+def getAllPictureCategory():
+
+    current_user = get_jwt_identity()
+
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    option_url = ADMIN_HOST + f"/poem/imageType/getAll"
+    logging.info('getAllPictureCategory发送的option_url：%s ' % option_url)
+
+    response = requests.post(option_url,json={},timeout=10)
+    # 检查请求是否成功
+    if response.status_code == 200:
+
+        data = response.json()
+
+        return jsonify(ret_data(SUCCESS, data=data['data']))
+    else:
+        return jsonify(ret_data(JSON_ERROR, data=response.status_code))
+
+
+
+#获取所有图片 20240229 xiaojuzi v2
+@web_back_api.route('/getAllPicture', methods=['POST'])
+@jwt_required()
+def getAllPicture():
+    current_user = get_jwt_identity()
+
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    number = request.form.get('pageIndex', None)
+
+    page_size = request.form.get('pageSize', None)
+
+    createTimeStart = request.form.get('createTimeStart', None)
+
+    createTimeEnd = request.form.get('createTimeEnd', None)
+
+    name = request.form.get('name', None)
+
+    imageTypeId = request.form.get('imageTypeId', None)
+
+    direction = request.form.get('direction', None)
+
+    option_url = ADMIN_HOST + f"/poem/image/page"
+
+    json = {
+        'pageIndex':number,
+        'page_size':page_size,
+        'createTimeStart':createTimeStart,
+        'createTimeEnd':createTimeEnd,
+        'name':name,
+        'imageTypeId':imageTypeId,
+        'direction':direction
+    }
+
+    logging.info('getAllPicture发送的option_url：%s ' % option_url)
+
+    response = requests.post(option_url,json=json,timeout=10)
+
+    # 检查请求是否成功
+    if response.status_code == 200:
+        data = response.json()
+        return jsonify(ret_data(SUCCESS, data=data['data']))
+    else:
+        return jsonify(ret_data(JSON_ERROR, data=response.status_code))
+
 
