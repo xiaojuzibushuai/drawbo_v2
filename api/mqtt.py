@@ -887,15 +887,22 @@ def mqttPushKeyImage():
     return jsonify(ret_data(UNBIND_DEVICE))
 
 @mqtt_api.route('/testMqttPushFacePictureDataImpl', methods=['POST'])
+@jwt_required()
 #封装实现 外部接口 小程序接口 xiaojuzi 20231120 人脸上传让机器画人脸 临时测试接口
 def testMqttPushFacePictureDataImpl():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     # 获取图像
     file = request.files.get('file')
 
     #获取用户选择的设备 20240102 xiaojuzi
     deviceid = request.form.get('deviceid',None)
-    openid = request.form.get('openid', None)
+    # openid = request.form.get('openid', None)
+    #20240301 xiaojuzi
+    openid = current_user['openid']
     rotate = request.form.get('rotate', None)
 
     #临时给三个
@@ -967,15 +974,25 @@ def testMqttPushFacePictureDataImpl():
     return jsonify(ret_data(result))
 
 @mqtt_api.route('/testMqttPushGirlDataImpl', methods=['POST'])
+@jwt_required()
 #临时接口小女孩骑自行车dat xiaojuzi 20231207
 def testMqttPushGirlDataImpl():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    openid = current_user['openid']
+
+    # 获取用户选择的设备 20240301 xiaojuzi
+    deviceid = request.form.get('deviceid', None)
 
     arg = 'girl'
 
     push_json = {
         'type': 2,
-        'deviceid': '80023FD00038',
-        'fromuser': 'oN3gn5JXs8x90pMys9wS3Y4oT-zk',
+        'deviceid': deviceid,
+        'fromuser': openid,
         'message': {
             # arg为文件夹名字  xiaojuzi 20231120
             'arg': arg,
@@ -988,15 +1005,25 @@ def testMqttPushGirlDataImpl():
     return jsonify(ret_data(errcode))
 
 @mqtt_api.route('/test1MqttPushGirlDataImpl', methods=['POST'])
+@jwt_required()
 #临时接口小女孩吃鸡腿dat xiaojuzi 20231207
 def test1MqttPushGirlDataImpl():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    openid = current_user['openid']
+
+    # 获取用户选择的设备 20240301 xiaojuzi
+    deviceid = request.form.get('deviceid', None)
 
     arg = 'girl1'
 
     push_json = {
         'type': 2,
-        'deviceid': '80023FD00038',
-        'fromuser': 'oN3gn5JXs8x90pMys9wS3Y4oT-zk',
+        'deviceid': deviceid,
+        'fromuser': openid,
         'message': {
             # arg为文件夹名字  xiaojuzi 20231120
             'arg': arg,
