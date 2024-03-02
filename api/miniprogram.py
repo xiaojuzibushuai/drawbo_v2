@@ -4,11 +4,13 @@ import ipaddress
 import random
 import re
 import string
+import subprocess
 import time
 import zipfile
 
 import requests
 import json
+
 from flask import request, jsonify, Blueprint
 import logging
 import os
@@ -24,7 +26,7 @@ from api.auth import jwt_redis_blocklist
 from api.mqtt import mqtt_push_wakeword_data, mqttPushAnswerToKeyBoard, get_mqtt_push_volume, get_mqtt_push_direction
 
 from config import HOST, APPSECRET, APPID, SignName, LoginTemplateCode, JWT_ACCESS_TOKEN_EXPIRES, SMS_EXPIRE_TIME, \
-    DEVICE_EXPIRE_TIME
+    DEVICE_EXPIRE_TIME, inkscape_path
 from models.course_question import CourseQuestion
 from models.device import Device
 from models.logout_user import LogoutUser
@@ -2067,6 +2069,54 @@ def deleteWakeword():
         return jsonify(ret_data(SUCCESS, data='唤醒词删除成功'))
     else:
         return jsonify(ret_data(PARAMS_ERROR, data='参数错误'))
+
+
+#20240302 xiaojuzi svg转png 小程序接口
+@miniprogram_api.route('/getSvgToImagePath', methods=['POST'])
+@jwt_required()
+def getSvgToImagePath():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    url = request.form.get('url', None)
+    if not url:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    #获取图片路径
+    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static').replace('\\','/')
+    save_file_folder = static_folder + f'/test/svg_to_png'
+
+    if not os.path.exists(save_file_folder):
+        os.makedirs(save_file_folder)
+
+    file_name = ''.join(url.split('/')[-1].split('.')[0].split('-')[:5])
+
+    file_path = os.path.join(save_file_folder,f'{file_name}.svg').replace("\\", "/")
+    png_path = os.path.join(save_file_folder,f'{file_name}.png').replace("\\", "/")
+
+    response = requests.get(url,timeout=10)
+
+    if response.status_code == 200:
+
+        if not response.content:
+            logging.info("下载失败，数据为空！")
+            return jsonify(ret_data(PARAMS_ERROR, data='下载失败，数据为空！'))
+
+        # 如果请求成功，将文件内容写入本地文件
+        with open(file_path, 'wb') as f:
+            f.write(response.content)
+            logging.info("文件保存成功:%s" % file_path)
+
+        # 将SVG文件转换为PNG文件
+        subprocess.run([inkscape_path, "--export-type=png", "-o", png_path, "--export-background=#FFFFFF", file_path])
+
+        return jsonify(ret_data(SUCCESS, data=HOST + f'/test/svg_to_png/{file_name}.png'))
+    else:
+        logging.info("下载失败，状态码:%s" % response.status_code)
+        return jsonify(ret_data(PARAMS_ERROR,data=response.status_code))
+
 
 
 #解压缩合格后缀文件 xiaojuzi v2 20240202
@@ -4505,3 +4555,5 @@ def reset_device():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
     return jsonify(ret_data(SUCCESS))
+
+
