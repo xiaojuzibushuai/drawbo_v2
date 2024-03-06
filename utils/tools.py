@@ -422,6 +422,8 @@ def hash_password(password):
 #检验用户输入的账号密码  xiaojuzi v2 20231202
 def check_password(password, hashed_password):
     # 验证密码是否匹配
+    if not hashed_password:
+        return False
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 #加密 20231228 xiaojuzi
