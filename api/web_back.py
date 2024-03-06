@@ -1356,6 +1356,7 @@ def videoAutoPushDatToDevice():
     #     os.makedirs(save_file_dat)
 
     response = requests.get(url)
+
     if response.status_code == 200:
         # 如果请求成功，将文件内容写入本地文件
         with open(save_file_dat, 'wb') as f:
@@ -1386,7 +1387,7 @@ def videoAutoPushDatToDevice():
 
                 errcode = send_message(push_json)
 
-        return jsonify(ret_data(errcode))
+        return jsonify(ret_data(SUCCESS))
 
     else:
         logging.info("下载失败，状态码:%s" % response.status_code)
