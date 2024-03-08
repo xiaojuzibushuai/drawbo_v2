@@ -821,15 +821,14 @@ def mqttPushKeyImage():
     #生成文件名
     # file_dir = create_noncestr(8)
     temp = str(int(time.time())) + create_noncestr(4)
+
     temp1 = str(datetime.now().year) + '/' + str(datetime.now().month)
+
     file_dir = temp1 + "/" + temp
 
     file_name = temp
 
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
-
-    # file_dir = create_noncestr(8)
-    # file_dir = file_name.split('.')[0]
 
     #要保存的文件的文件夹
     save_file_floder = static_folder + f'/keyboard/{file_dir}'
@@ -839,24 +838,23 @@ def mqttPushKeyImage():
     #生成lrc文件
     init_lrc_file = file_name + '.lrc'
 
-    # 生成dat文件
-    # init_dat_file = file_dir + '.dat'
-
     lrc_data = '000000000000000000000000000000000'
 
     # logging.info('drawbo:' + os.getenv('drawbo'))
     device = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
     # logging.info('device' + str(len(device)))
+    # logging.info('mqttPushKeyImage接口查询的device:%s'%(json.dumps(device)))
 
-    if not device:
-        return jsonify(ret_data(UNBIND_DEVICE))
+    # if not device:
+    #     return jsonify(ret_data(UNBIND_DEVICE))
+
 
     #修改逻辑 只允许一个投影绑定一个画小宇设备 不允许绑定多个先 xiaojuzi20231108
     for de in device:
 
         if de.external_deviceid:
 
-            #延时保存文件 20231108
+            # 延时保存文件 20231108
             try:
                 # 文件夹不存在则创建
                 if not os.path.exists(save_file_floder):
@@ -864,12 +862,12 @@ def mqttPushKeyImage():
 
                 # option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid}&number={number}&optionId={gametype}"
 
-                option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid if courseid is not None else ''}&number={number if number is not None else ''}&sectionNo={gametype if gametype is not None else ''}&optionType={optiontype if optiontype is not None else ''}"
+                option_url = ADMIN_HOST + f"/poem/option/getOption?courseId={courseid if courseid is not None else ''}&number={number if number is not None else ''}&sectionNo={gametype if gametype is not None else ''}&optionType={optiontype if optiontype is not None else ''}"
 
                 logging.info('mqttPushKeyImage发送的option_url：%s ' % option_url)
 
-                #xiaojuzi 20240227 增加校验
-                result1 = getOptionAndDownload(option_url,save_file_dat)
+                # xiaojuzi 20240227 增加校验
+                result1 = getOptionAndDownload(option_url, save_file_dat)
 
                 if not result1:
                     return jsonify(ret_data(PARAMS_ERROR))
@@ -881,10 +879,11 @@ def mqttPushKeyImage():
                 print("文件保存或转换失败:", str(e))
 
             result = mqttPushKeyBoardPictureData(de.userid,de.external_deviceid,temp1,temp)
+            logging.info('mqttPushKeyImage发送的result：%s ' % result)
 
-            return jsonify(ret_data(result))
+    return jsonify(ret_data(SUCCESS))
 
-    return jsonify(ret_data(UNBIND_DEVICE))
+    # return jsonify(ret_data(UNBIND_DEVICE))
 
 @mqtt_api.route('/testMqttPushFacePictureDataImpl', methods=['POST'])
 @jwt_required()
@@ -1755,6 +1754,8 @@ def getOptionAndDownload(url:str,save_path:str):
             # 如果请求成功，将文件内容写入本地文件
             with open(save_path, 'wb') as f:
                 f.write(response.content)
+
+            logging.info("从url %s：下载成功，save_path:%s" % (url,save_path))
 
             return True
         else:

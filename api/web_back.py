@@ -1345,10 +1345,11 @@ def videoAutoPushDatToDevice():
 
     #20240124 xiaojuzi v2 因不同平台协调问题 按领导方案修改逻辑
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
-    #要保存的文件的文件夹
-    save_file_folder = static_folder + f'/test/script_temp'
     #更新新名字截取格式 20240225 xiaojuzi v2
     file_name = ''.join(url.split('/')[-1].split('.')[0].split('-')[:5])
+
+    #要保存的文件的文件夹
+    save_file_folder = static_folder + f'/test/{file_name}'
     # file_name = ''.join(url.split('/')[-1].split('.')[0])
     save_file_dat = os.path.join(save_file_folder,f'{file_name}.dat').replace("\\", "/")
     temp_file_lrc = os.path.join(save_file_folder,f'{file_name}.lrc').replace("\\", "/")
@@ -1379,7 +1380,7 @@ def videoAutoPushDatToDevice():
                     'fromuser': openid,
                     'message': {
                         'arg': file_name,
-                        'url': HOST + '/test/script_temp/'
+                        'url': HOST + f'/test/{file_name}'
                     }
                 }
 
