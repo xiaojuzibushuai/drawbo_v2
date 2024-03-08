@@ -799,7 +799,7 @@ def mqttPushCameraPictureDataImpl():
     return jsonify(ret_data(UNBIND_DEVICE))
 
 @mqtt_api.route('/mqttPushKeyImage', methods=['POST'])
-#封装实现 外部接口 非小程序接口 xiaojuzi 20231115 按键获取后台dat传到画小宇设备上画画 dengshuibin
+#封装实现 外部接口 非小程序接口 xiaojuzi 20240308 重构 按键获取后台dat传到画小宇设备上画画
 def mqttPushKeyImage():
 
     deviceid = request.headers.get('deviceid',None)
@@ -811,79 +811,63 @@ def mqttPushKeyImage():
 
     optiontype = request.headers.get('parentid',None)
 
-    if not deviceid:
+    deviceid = deviceid.replace(":", "")
 
+    if not deviceid:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    deviceid = deviceid.replace(":", "")
-    # logging.info('临时解析出mac地址：'+deviceid)
+    device = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
 
-    #生成文件名
-    # file_dir = create_noncestr(8)
-    temp = str(int(time.time())) + create_noncestr(4)
+    if not device:
+        return jsonify(ret_data(UNBIND_DEVICE))
 
-    temp1 = str(datetime.now().year) + '/' + str(datetime.now().month)
+    option_url = ADMIN_HOST + (
+        f"/poem/option/getOption?courseId={courseid if courseid is not None else ''}&number={number if number is not None else ''}"
+        f"&sectionNo={gametype if gametype is not None else ''}&optionType={optiontype if optiontype is not None else ''}")
 
-    file_dir = temp1 + "/" + temp
+    logging.info('mqttPushKeyImage发送的option_url：%s ' % option_url)
 
-    file_name = temp
+    #先进行dat文件判断是否已经下载过
+    url = getDatFileUrl(option_url)
+
+    if not url:
+        return jsonify(ret_data(PARAMS_ERROR))
 
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
 
+    file_name = ''.join(url.split('/')[-1].split('.')[0].split('-')[:5])
     #要保存的文件的文件夹
-    save_file_floder = static_folder + f'/keyboard/{file_dir}'
+    save_file_floder = static_folder + f'/keyboard/{file_name}'
 
-    save_file_dat =save_file_floder + f'/{file_name}.dat'
+    if not (os.path.exists(save_file_floder)):
+        os.makedirs(save_file_floder)
 
-    #生成lrc文件
-    init_lrc_file = file_name + '.lrc'
+        # 构造文件路径
+        init_dat_file = file_name + '.dat'
+        file_path = os.path.join(save_file_floder, init_dat_file)
 
-    lrc_data = '000000000000000000000000000000000'
+        flag = getOptionAndDownload(url,file_path)
 
-    # logging.info('drawbo:' + os.getenv('drawbo'))
-    device = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
-    # logging.info('device' + str(len(device)))
-    # logging.info('mqttPushKeyImage接口查询的device:%s'%(json.dumps(device)))
+        if not flag:
+            return jsonify(ret_data(PARAMS_ERROR))
 
-    # if not device:
-    #     return jsonify(ret_data(UNBIND_DEVICE))
+        # 生成lrc文件
+        init_lrc_file = file_name + '.lrc'
+        lrc_data = '000000000000000000000000000000000'
+        # 创建lrc文件
+        initAutoPictureFile(save_file_floder, init_lrc_file, lrc_data)
 
-
-    #修改逻辑 只允许一个投影绑定一个画小宇设备 不允许绑定多个先 xiaojuzi20231108
+    device_set = set()
     for de in device:
-
         if de.external_deviceid:
-
-            # 延时保存文件 20231108
-            try:
-                # 文件夹不存在则创建
-                if not os.path.exists(save_file_floder):
-                    os.makedirs(save_file_floder)
-
-                # option_url = ADMIN_HOST+f"/poem/option/getOption?courseId={courseid}&number={number}&optionId={gametype}"
-
-                option_url = ADMIN_HOST + f"/poem/option/getOption?courseId={courseid if courseid is not None else ''}&number={number if number is not None else ''}&sectionNo={gametype if gametype is not None else ''}&optionType={optiontype if optiontype is not None else ''}"
-
-                logging.info('mqttPushKeyImage发送的option_url：%s ' % option_url)
-
-                # xiaojuzi 20240227 增加校验
-                result1 = getOptionAndDownload(option_url, save_file_dat)
-
-                if not result1:
-                    return jsonify(ret_data(PARAMS_ERROR))
-
-                # 创建lrc文件
-                initAutoPictureFile(save_file_floder, init_lrc_file, lrc_data)
-
-            except Exception as e:
-                print("文件保存或转换失败:", str(e))
-
-            result = mqttPushKeyBoardPictureData(de.userid,de.external_deviceid,temp1,temp)
-            logging.info('mqttPushKeyImage发送的result：%s ' % result)
+            if de.external_deviceid not in device_set:
+                device_set.add(de.external_deviceid)
+                result = mqttPushKeyBoardPictureData(de.userid,de.external_deviceid,file_name)
+                logging.info('mqttPushKeyImage发送的result：%s ' % result)
 
     return jsonify(ret_data(SUCCESS))
 
-    # return jsonify(ret_data(UNBIND_DEVICE))
+
 
 @mqtt_api.route('/testMqttPushFacePictureDataImpl', methods=['POST'])
 @jwt_required()
@@ -1115,7 +1099,7 @@ def mqttPushCameraPictureData(openid: str,deviceid: str,arg: str,temp=None):
 
     return errcode
 
-def mqttPushKeyBoardPictureData(openid: str,deviceid: str,arg: str,temp=None):
+def mqttPushKeyBoardPictureData(openid: str,deviceid: str,file_name: str):
 
     """
     数据文件 xiaojuzi v2
@@ -1124,9 +1108,9 @@ def mqttPushKeyBoardPictureData(openid: str,deviceid: str,arg: str,temp=None):
     :return:
     """
 
-    logging.info('openid: %s, deviceid: %s, arg: %s' % (openid, deviceid,arg))
+    logging.info('openid: %s, deviceid: %s, arg: %s' % (openid, deviceid,file_name))
 
-    if not openid or not deviceid or not arg:
+    if not openid or not deviceid or not file_name:
         return jsonify(ret_data(PARAMS_ERROR))
 
     push_json = {
@@ -1135,8 +1119,8 @@ def mqttPushKeyBoardPictureData(openid: str,deviceid: str,arg: str,temp=None):
         'fromuser': openid,
         'message': {
             #arg为文件夹名字  xiaojuzi 20231110
-            'arg': temp,
-            'url': HOST + '/keyboard/' + arg + '/' + temp
+            'arg': file_name,
+            'url': HOST + '/keyboard/' + file_name
         }
     }
 
@@ -1730,38 +1714,36 @@ def sortDeviceByMaster(openid: str)-> list:
 
     return device_list
 
+def getDatFileUrl(url:str)->str:
 
-# 请求接口获取 选项 并 下载 dat dengshuibin
-def getOptionAndDownload(url:str,save_path:str):
-    logging.info('url: %s' % (url))
-    # print('url: %s' % (url))
     response = requests.post(url)
-
+    url = None
     # 检查请求是否成功
     if response.status_code == 200:
         # 处理返回的数据
         data = response.json()  # 使用 .json() 方法将返回的 JSON 数据转换为 Python 对象
         url = data['data']['url']
-        # print("dat地址:"+url)  # 输出返回的数据
 
-        response = requests.get(url)
+    return url
 
-        if response.status_code == 200:
-            if not response.content:
-                logging.info("下载失败，数据为空！")
-                return False
 
-            # 如果请求成功，将文件内容写入本地文件
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
+# 请求接口获取 选项 并 下载 dat
+def getOptionAndDownload(url:str,file_path:str):
 
-            logging.info("从url %s：下载成功，save_path:%s" % (url,save_path))
+    response = requests.get(url)
 
-            return True
-        else:
-            logging.info("下载失败，状态码:%s" % response.status_code)
+    if response.status_code == 200:
+        if not response.content:
+            logging.info("下载失败，数据为空！")
             return False
 
+        # 如果请求成功，将文件内容写入本地文件
+        with open(file_path, 'wb') as f:
+            f.write(response.content)
+
+        logging.info("从url %s：下载成功，save_path:%s" % (url,file_path))
+
+        return True
     else:
-        logging.info("获取选项接口失败:%s" % response.status_code)
+        logging.info("下载失败，状态码:%s" % response.status_code)
         return False

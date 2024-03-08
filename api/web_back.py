@@ -1350,11 +1350,14 @@ def videoAutoPushDatToDevice():
 
     #要保存的文件的文件夹
     save_file_folder = static_folder + f'/test/{file_name}'
+
+
     # file_name = ''.join(url.split('/')[-1].split('.')[0])
     save_file_dat = os.path.join(save_file_folder,f'{file_name}.dat').replace("\\", "/")
     temp_file_lrc = os.path.join(save_file_folder,f'{file_name}.lrc').replace("\\", "/")
-    # if not os.path.exists(save_file_dat):
-    #     os.makedirs(save_file_dat)
+
+    if not os.path.exists(save_file_folder):
+        os.makedirs(save_file_folder)
 
     response = requests.get(url)
 
@@ -1370,23 +1373,23 @@ def videoAutoPushDatToDevice():
             # print('文件保存成功')
 
         for device in device_list:
-            #20240223 新需求更改 xiaojuzi 记录 添画需要判断过否在线
-            device1 = Device.query.filter_by(deviceid=device.deviceid).first()
-            if (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+            #20240223 新需求更改 xiaojuzi 记录 添画需要判断过否在线  20240308 不管在不在线直接发 暂时修改
+            # device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+            # if (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
 
-                push_json = {
-                    'type': 2,
-                    'deviceid': device.deviceid,
-                    'fromuser': openid,
-                    'message': {
-                        'arg': file_name,
-                        'url': HOST + f'/test/{file_name}'
-                    }
+            push_json = {
+                'type': 2,
+                'deviceid': device.deviceid,
+                'fromuser': openid,
+                'message': {
+                    'arg': file_name,
+                    'url': HOST + f'/test/{file_name}'
                 }
+            }
 
-                logging.info(push_json)
+            logging.info(push_json)
 
-                errcode = send_message(push_json)
+            errcode = send_message(push_json)
 
         return jsonify(ret_data(SUCCESS))
 
