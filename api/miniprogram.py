@@ -1823,7 +1823,11 @@ def multi_device_manage():
 
             device_dict['status'] = device.status
             # 设备绑定时间 20240204 xiaojuzi
-            device_dict['status_update'] = device.status_update
+            if not device.status_update:
+                device.status_update = datetime.now()
+                device_dict['status_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                device_dict['status_update'] = device.status_update
 
 
             if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
@@ -1854,10 +1858,12 @@ def multi_device_manage():
                 }
             }
 
-        # 20240308 xiaojuzi 按更新时间排序
-        device_data = sorted(device_data,
-                             key=lambda x: datetime.strptime(str(x['status_update']), '%Y-%m-%d %H:%M:%S'),
-                             reverse=True)
+        db.session.commit()
+        if device_data:
+            # 20240308 xiaojuzi 按更新时间排序
+            device_data = sorted(device_data,
+                                 key=lambda x: datetime.strptime(str(x['status_update']), '%Y-%m-%d %H:%M:%S'),
+                                 reverse=True)
 
         return jsonify(ret_data(SUCCESS, data=device_data))
 
@@ -1899,7 +1905,11 @@ def multi_device_manage():
 
         device_dict['status'] = device.status
         # 设备绑定时间 20240204 xiaojuzi
-        device_dict['status_update'] = device.status_update
+        if not device.status_update:
+            device.status_update = datetime.now()
+            device_dict['status_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            device_dict['status_update'] = device.status_update
 
         if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
 
@@ -1932,10 +1942,12 @@ def multi_device_manage():
             }
         }
 
-    # 20240308 xiaojuzi 按更新时间排序
-    device_data = sorted(device_data,
-                         key=lambda x: datetime.strptime(str(x['status_update']), '%Y-%m-%d %H:%M:%S'),
-                         reverse=True)
+    db.session.commit()
+    if device_data:
+        # 20240308 xiaojuzi 按更新时间排序
+        device_data = sorted(device_data,
+                             key=lambda x: datetime.strptime(str(x['status_update']), '%Y-%m-%d %H:%M:%S'),
+                             reverse=True)
 
     return jsonify(ret_data(SUCCESS,data=device_data))
 
