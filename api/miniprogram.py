@@ -1854,6 +1854,11 @@ def multi_device_manage():
                 }
             }
 
+        # 20240308 xiaojuzi 按更新时间排序
+        device_data = sorted(device_data,
+                             key=lambda x: datetime.strptime(str(x['status_update']), '%Y-%m-%d %H:%M:%S'),
+                             reverse=True)
+
         return jsonify(ret_data(SUCCESS, data=device_data))
 
     #判断设备是否在线
@@ -1927,10 +1932,12 @@ def multi_device_manage():
             }
         }
 
-    if not device_data:
-        return jsonify(ret_data(UNBIND_DEVICE,data=None))
-    else:
-        return jsonify(ret_data(SUCCESS,data=device_data))
+    # 20240308 xiaojuzi 按更新时间排序
+    device_data = sorted(device_data,
+                         key=lambda x: datetime.strptime(str(x['status_update']), '%Y-%m-%d %H:%M:%S'),
+                         reverse=True)
+
+    return jsonify(ret_data(SUCCESS,data=device_data))
 
 
 @miniprogram_api.route('/update_devicname', methods=['POST'])
