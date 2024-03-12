@@ -34,7 +34,6 @@ from models.user_external_device import UserExternalDevice
 mqtt_api = Blueprint('mqtt', __name__, url_prefix='/api/v1/mqtt')
 
 #  本代码为v2版本 xiaojuzi  记录2023920
-
 @mqtt_api.route('/voice', methods=['POST'])
 @jwt_required()
 # @decorator_sign
@@ -223,8 +222,6 @@ def mqtt_push_data() -> object:
 
                 # 使用次数减1
                 device_course.use_count = device_course.use_count - 1
-
-                # db.session.commit()
 
                 # 更新设备当前课程
                 device.course_name = device_course.course.title
@@ -504,7 +501,7 @@ def getKeyboardProcessData(results: list) -> list:
 
 
 
-@mqtt_api.route('/getKeyboardDataImpl', methods=['GET','POST'])
+# @mqtt_api.route('/getKeyboardDataImpl', methods=['GET','POST'])
 #xiaojuzi 20231031 外部接口 返回给前端键盘答题数据  数据面板（旧）
 def getKeyboardDataImpl():
 
@@ -718,11 +715,7 @@ def mqttPushCameraPictureDataImpl():
     #获取图像二进制文件 硬件要求这样传输
     data = request.data
 
-    # head = request.headers
-
     deviceid = request.headers.get('deviceid')
-
-    # print(deviceid)
 
     if not data or not deviceid:
 
@@ -867,25 +860,23 @@ def mqttPushKeyImage():
 
     return jsonify(ret_data(SUCCESS))
 
-
-
 @mqtt_api.route('/testMqttPushFacePictureDataImpl', methods=['POST'])
-@jwt_required()
+# @jwt_required()
 #封装实现 外部接口 小程序接口 xiaojuzi 20231120 人脸上传让机器画人脸 临时测试接口
 def testMqttPushFacePictureDataImpl():
 
-    current_user = get_jwt_identity()
-    if not current_user:
-        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    # current_user = get_jwt_identity()
+    # if not current_user:
+    #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     # 获取图像
     file = request.files.get('file')
 
     #获取用户选择的设备 20240102 xiaojuzi
     deviceid = request.form.get('deviceid',None)
-    # openid = request.form.get('openid', None)
-    #20240301 xiaojuzi
-    openid = current_user['openid']
+    openid = request.form.get('openid', None)
+    #20240301 xiaojuzi 20240309 TODO 先暂时给注解掉
+    # openid = current_user['openid']
     rotate = request.form.get('rotate', None)
 
     #临时给三个
