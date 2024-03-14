@@ -1316,6 +1316,7 @@ def getCourseVideoListByCourseId():
 
 #预制课发送接口 20231228 xiaojuzi v2
 # 需要前端传递设置的设备  定为场景id方便管理 20240131
+# 20240313 重构优化此方法 xiaojuzi v2
 @web_back_api.route('/push_dat', methods=['POST'])
 @jwt_required()
 def videoAutoPushDatToDevice():
@@ -1332,8 +1333,31 @@ def videoAutoPushDatToDevice():
         return jsonify(ret_data(PARAMS_ERROR))
 
     #updateby xiaojuzi v2 20240131
-
     openid = current_user['openid']
+
+    #先进行dat文件判断是否已经下载过 20240313 xiaojuzi
+    # 20240124 xiaojuzi v2 因不同平台协调问题 按领导方案修改逻辑
+    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static').replace('\\',
+                                                                                                                '/')
+    # 更新新名字截取格式 20240225 xiaojuzi v2
+    file_name = ''.join(url.split('/')[-1].split('.')[0].split('-')[:5])
+
+    # 要保存的文件的文件夹
+    save_file_folder = static_folder + f'/test/{file_name}'
+
+    if not os.path.exists(save_file_folder):
+        os.makedirs(save_file_folder)
+
+        # file_name = ''.join(url.split('/')[-1].split('.')[0])
+        save_file_dat = os.path.join(save_file_folder, f'{file_name}.dat').replace("\\", "/")
+        temp_file_lrc = os.path.join(save_file_folder, f'{file_name}.lrc').replace("\\", "/")
+
+        #下载文件
+        flag = getDownloadFileToLocal(url, save_file_dat,temp_file_lrc)
+
+        if not flag:
+            return jsonify(ret_data(PARAMS_ERROR))
+
 
     #20240220 xiaojuzi 修改前端传递格式
     sceneid = json.loads(sceneid)
@@ -1343,61 +1367,51 @@ def videoAutoPushDatToDevice():
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
-    #20240124 xiaojuzi v2 因不同平台协调问题 按领导方案修改逻辑
-    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
-    #更新新名字截取格式 20240225 xiaojuzi v2
-    file_name = ''.join(url.split('/')[-1].split('.')[0].split('-')[:5])
+    for device in device_list:
+        #20240223 新需求更改 xiaojuzi 记录 添画需要判断过否在线  20240308 不管在不在线直接发 暂时修改
+        # device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+        # if (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
 
-    #要保存的文件的文件夹
-    save_file_folder = static_folder + f'/test/{file_name}'
+        push_json = {
+            'type': 2,
+            'deviceid': device.deviceid,
+            'fromuser': openid,
+            'message': {
+                'arg': file_name,
+                'url': HOST + f'/test/{file_name}'
+            }
+        }
+
+        logging.info(push_json)
+
+        errcode = send_message(push_json)
+
+        logging.info('push_dat发送的result：%s ' % errcode)
+
+    return jsonify(ret_data(SUCCESS))
 
 
-    # file_name = ''.join(url.split('/')[-1].split('.')[0])
-    save_file_dat = os.path.join(save_file_folder,f'{file_name}.dat').replace("\\", "/")
-    temp_file_lrc = os.path.join(save_file_folder,f'{file_name}.lrc').replace("\\", "/")
-
-    if not os.path.exists(save_file_folder):
-        os.makedirs(save_file_folder)
+# 下载文件到本地 xiaojuzi 20240313
+def getDownloadFileToLocal(url,file_path,temp_file):
 
     response = requests.get(url)
 
     if response.status_code == 200:
+        if not response.content:
+            logging.info("下载失败，数据为空！")
+            return False
         # 如果请求成功，将文件内容写入本地文件
-        with open(save_file_dat, 'wb') as f:
+        with open(file_path, 'wb') as f:
             f.write(response.content)
-            logging.info("文件保存成功:%s" % save_file_dat)
+            logging.info("文件保存成功:%s" % file_path)
 
-        with open(temp_file_lrc, 'w') as file:
+        with open(temp_file, 'w') as file:
             file.write('000000000000000000000000000000000')
 
-            # print('文件保存成功')
-
-        for device in device_list:
-            #20240223 新需求更改 xiaojuzi 记录 添画需要判断过否在线  20240308 不管在不在线直接发 暂时修改
-            # device1 = Device.query.filter_by(deviceid=device.deviceid).first()
-            # if (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
-
-            push_json = {
-                'type': 2,
-                'deviceid': device.deviceid,
-                'fromuser': openid,
-                'message': {
-                    'arg': file_name,
-                    'url': HOST + f'/test/{file_name}'
-                }
-            }
-
-            logging.info(push_json)
-
-            errcode = send_message(push_json)
-
-        return jsonify(ret_data(SUCCESS))
-
+        return True
     else:
         logging.info("下载失败，状态码:%s" % response.status_code)
-        return jsonify(ret_data(PARAMS_ERROR))
-        # print('下载失败，状态码:', response.status_code)
-
+        return False
 
 
 #保存在线视频课程脚本接口  update 20240112  by xiaojuzi v2
@@ -1887,5 +1901,57 @@ def getAllPicture():
         return jsonify(ret_data(SUCCESS, data=data['data']))
     else:
         return jsonify(ret_data(JSON_ERROR, data=response.status_code))
+
+
+#web端对场景下设备进行运行控制 20240313 xiaojuzi v2
+@web_back_api.route('/push_action', methods=['POST'])
+@jwt_required()
+def videoAutoPushActionToDevice():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    operate = request.form.get('operate', 3)
+
+    sceneid = request.form.get('sceneid')
+
+    if not sceneid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    openid = current_user['openid']
+
+    sceneid = json.loads(sceneid)
+
+    device_list = getDeviceListBySceneId(sceneid)
+
+    if not device_list:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    for device in device_list:
+        push_json = {
+            'type': 3,
+            'deviceid': device.deviceid,
+            'fromuser': openid,
+            'message': {
+                'operate': operate
+            }
+        }
+
+        logging.info(push_json)
+
+        errcode = send_message(push_json)
+
+        logging.info('push_action发送的result：%s ' % errcode)
+
+    return jsonify(ret_data(SUCCESS))
+
+
+
+
+
+
+
+
 
 
