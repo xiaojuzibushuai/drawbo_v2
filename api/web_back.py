@@ -1393,24 +1393,27 @@ def videoAutoPushDatToDevice():
 
 # 下载文件到本地 xiaojuzi 20240313
 def getDownloadFileToLocal(url,file_path,temp_file):
+    try:
+        response = requests.get(url)
 
-    response = requests.get(url)
+        if response.status_code == 200:
+            if not response.content:
+                logging.info("下载失败，数据为空！")
+                return False
+            # 如果请求成功，将文件内容写入本地文件
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+                logging.info("文件保存成功:%s" % file_path)
 
-    if response.status_code == 200:
-        if not response.content:
-            logging.info("下载失败，数据为空！")
+            with open(temp_file, 'w') as file:
+                file.write('000000000000000000000000000000000')
+
+            return True
+        else:
+            logging.info("下载失败，状态码:%s" % response.status_code)
             return False
-        # 如果请求成功，将文件内容写入本地文件
-        with open(file_path, 'wb') as f:
-            f.write(response.content)
-            logging.info("文件保存成功:%s" % file_path)
-
-        with open(temp_file, 'w') as file:
-            file.write('000000000000000000000000000000000')
-
-        return True
-    else:
-        logging.info("下载失败，状态码:%s" % response.status_code)
+    except Exception as e:
+        logging.info("getDownloadFileToLocal下载失败，错误信息:%s" % e)
         return False
 
 

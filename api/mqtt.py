@@ -1706,35 +1706,43 @@ def sortDeviceByMaster(openid: str)-> list:
     return device_list
 
 def getDatFileUrl(url:str)->str:
+    try:
+        response = requests.post(url)
+        url = None
+        # 检查请求是否成功
+        if response.status_code == 200:
+            # 处理返回的数据
+            data = response.json()  # 使用 .json() 方法将返回的 JSON 数据转换为 Python 对象
+            if data and data['data']:
+                url = data['data']['url']
 
-    response = requests.post(url)
-    url = None
-    # 检查请求是否成功
-    if response.status_code == 200:
-        # 处理返回的数据
-        data = response.json()  # 使用 .json() 方法将返回的 JSON 数据转换为 Python 对象
-        url = data['data']['url']
-
-    return url
+        return url
+    except Exception as e:
+        logging.info("getDatFileUrl获取url失败，错误信息:%s" % e)
+        return None
 
 
 # 请求接口获取 选项 并 下载 dat
 def getOptionAndDownload(url:str,file_path:str):
+    try:
 
-    response = requests.get(url)
+        response = requests.get(url)
 
-    if response.status_code == 200:
-        if not response.content:
-            logging.info("下载失败，数据为空！")
+        if response.status_code == 200:
+            if not response.content:
+                logging.info("下载失败，数据为空！")
+                return False
+
+            # 如果请求成功，将文件内容写入本地文件
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+
+            logging.info("从url %s：下载成功，save_path:%s" % (url,file_path))
+
+            return True
+        else:
+            logging.info("下载失败，状态码:%s" % response.status_code)
             return False
-
-        # 如果请求成功，将文件内容写入本地文件
-        with open(file_path, 'wb') as f:
-            f.write(response.content)
-
-        logging.info("从url %s：下载成功，save_path:%s" % (url,file_path))
-
-        return True
-    else:
-        logging.info("下载失败，状态码:%s" % response.status_code)
+    except Exception as e:
+        logging.info("getOptionAndDownload获取url失败，错误信息:%s" % e)
         return False

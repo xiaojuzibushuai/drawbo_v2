@@ -3301,7 +3301,7 @@ def bindExternalDevice():
 
             if user_external_device:
                 # 重复绑定
-                return jsonify(ret_data(REPEAT_BIND_DEVICE))
+                return jsonify(ret_data(REPEAT_BIND_DEVICE,data=f'已被外设设备号为:{user_external_device.deviceid}的绑定'))
 
             # 一个投影等外设设备只允许绑定一个画小宇设备20231108 xiaojuzi
             device1 = UserExternalDevice.query.filter_by(deviceid=deviceid).all()
