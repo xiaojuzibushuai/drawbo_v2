@@ -920,6 +920,86 @@ def getUnUserSceneDeviceById():
 
     return jsonify(ret_data(SUCCESS,data=data_list))
 
+
+#查询当前子场景 未在此场景下绑定的所有画小宇设备 xiaojuzi v2 20240315 前端需求
+@miniprogram_api.route('/getUserSceneDeviceListById', methods=['POST'])
+@jwt_required()
+def getUserSceneDeviceListById():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    logging.info('getUserSceneDeviceListById api')
+
+    sceneid = request.form.get('id')
+
+    if not sceneid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    user_scene = DeviceGroup.query.filter_by(id=sceneid).first()
+    if not user_scene:
+        return jsonify(ret_data(SCENE_ERROR))
+
+    data_list = []
+
+    data_dict = {
+        'scenename':'',
+        'sub_scenename': '',
+        'deviceid': '',
+        'devicename': ''
+    }
+
+    userid = user_scene.userid
+    scenename = user_scene.scenename
+    sub_scenename = user_scene.sub_scenename
+
+    user_scene1 = DeviceGroup.query.filter(DeviceGroup.userid == userid, not_(and_(
+        DeviceGroup.scenename == scenename,
+        DeviceGroup.sub_scenename == sub_scenename))).all()
+
+    if user_scene1:
+        for us in user_scene1:
+
+            ud = User_Device.query.filter_by(userid=us.userid, sceneid=us.id).all()
+
+            if ud:
+                for u in ud:
+                    data_dict['scenename'] = us.scenename
+                    data_dict['sub_scenename'] = us.sub_scenename
+
+                    d = Device.query.filter_by(deviceid=u.deviceid).first()
+                    data_dict['deviceid'] = d.deviceid
+                    data_dict['devicename'] = d.devicename
+
+                    data_list.append(data_dict)
+
+                    data_dict = {
+                        'scenename': '',
+                        'sub_scenename': '',
+                        'deviceid': '',
+                        'devicename': ''
+                    }
+    # 新增逻辑 20231214 xiaojuzi v2
+    ud = User_Device.query.filter(User_Device.userid == userid, User_Device.sceneid.is_(None)).all()
+
+    if ud:
+        for u in ud:
+            d = Device.query.filter_by(deviceid=u.deviceid).first()
+            data_dict['deviceid'] = d.deviceid
+            data_dict['devicename'] = d.devicename
+
+            data_list.append(data_dict)
+
+            data_dict = {
+                'scenename': '',
+                'sub_scenename': '',
+                'deviceid': '',
+                'devicename': ''
+            }
+
+    return jsonify(ret_data(SUCCESS,data=data_list))
+
 #用户场景详情设备查询 xiaojuzi v2 20231213
 #20240122 xiaojuzi v2 逻辑修改 查画小宇时还要带上已绑定的外设
 @miniprogram_api.route('/getUserSceneDetailById', methods=['POST'])
