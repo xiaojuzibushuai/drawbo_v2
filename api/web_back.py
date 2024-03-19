@@ -355,7 +355,14 @@ def getCourse():
     #     for cate in course_list:
     #         cate['video_count'] = 999
     #         if cate['video_files']:
+    #
     #             sorted_video_data = sorted(json.loads(cate['video_files']), key=lambda x: (int(x['episode']), -int(x['dpi'])))
+    #
+    #             # 20240319 领导要求 临时关闭CDN加速 临时逻辑
+    #             for data in sorted_video_data:
+    #                 data['video_base_url'] = data['video_base_url'].replace('cdn.course.v5ky.com',
+    #                                                                             'kaiyu-video-resource.oss-cn-wuhan-lr.aliyuncs.com')
+    #
     #             cate['video_files'] = json.dumps(sorted_video_data)
     # else:
     #     course_list = []
@@ -378,7 +385,14 @@ def getCourse():
         #前端约定 更新该课程的video_files内的排序 20240223 xiaojuzi
         for cl in course_list:
             if cl['video_files']:
+
                 sorted_video_data = sorted(json.loads(cl['video_files']), key=lambda x: (int(x['episode']), -int(x['dpi'])))
+
+                # 20240319 领导要求 临时关闭CDN加速 临时逻辑
+                # for data in sorted_video_data:
+                #     data['video_base_url'] = data['video_base_url'].replace('cdn.course.v5ky.com',
+                #                                                                 'kaiyu-video-resource.oss-cn-wuhan-lr.aliyuncs.com')
+
                 cl['video_files'] = json.dumps(sorted_video_data)
 
     else:
