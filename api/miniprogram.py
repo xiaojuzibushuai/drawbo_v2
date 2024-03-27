@@ -1276,7 +1276,7 @@ def createUserSceneShareDevice():
     permission_level = request.form.get('permission_level',1)
 
     #20240318 小程序前端没同步 没修改 暂时修改权限只有查看
-    permission_level = 1
+    # permission_level = 1
 
     if not sceneid or not end_date:
         return jsonify(ret_data(PARAMS_ERROR))
