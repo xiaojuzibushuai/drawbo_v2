@@ -118,9 +118,9 @@ def iot_topic():
         user = User.query.filter_by(openid=custom).first()
         if user:
             # 新增用户设备信息表记录逻辑修改 xiaojuzi 20231214 v2 一个画小宇设备只允许一个人绑定 其他人绑定该设备只能分享添加
-            # device = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
+            device = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
             # 待完善 20231218
-            device = User_Device.query.filter_by(userid=custom, deviceid=deviceid).first()
+            # device = User_Device.query.filter_by(userid=custom, deviceid=deviceid).first()
             if not device:
 
                 user_device = User_Device(
@@ -262,9 +262,9 @@ def iot_send():
                 db.session.commit()
 
             # 新增用户设备信息表记录逻辑修改 xiaojuzi 20231214 v2 一个画小宇设备只允许一个人绑定 其他人绑定该设备只能分享添加
-            # device = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
+            device = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
             #待完善 20231218
-            device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
+            # device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
             if not device:
                 # 新增用户设备信息表记录 xiaojuzi
                 user_device = User_Device(

@@ -30,6 +30,7 @@ import base64
 import requests
 from utils.face import FaceTool
 
+
 def manager_app_logs(scope, message):
     """
     管理后台日志

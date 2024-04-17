@@ -1871,7 +1871,7 @@ def multi_device_manage():
     #20231212 xiaojuzi v2 画小宇设备列表分组条件判断查询
     sceneid = request.form.get('sceneid', None)
     if sceneid:
-        devices = User_Device.query.filter_by(userid=openid,sceneid=sceneid).all()
+        devices = User_Device.query.filter_by(userid=openid,sceneid=sceneid).order_by(User_Device.status_update.desc()).all()
 
         device_data = []
 
@@ -2048,13 +2048,17 @@ def update_devicname():
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
     # user = User.query.filter_by(openid=openid).first()
-
     deviceid = request.form.get('deviceid', None)
     devicename = request.form.get('devicename',None)
 
     if not deviceid or not devicename:
         return jsonify(ret_data(PARAMS_ERROR))
 
+    # 获取该用户下所有设备名字列表 20240417 xiaojuzi
+    device_ids = [device.deviceid for device in User_Device.query.filter_by(userid=openid).all()]
+    # print(device_ids)
+    device_names = [device.devicename for device in Device.query.filter(Device.deviceid.in_(device_ids)).all()]
+    # print(device_names)
 
     device = User_Device.query.filter_by(userid=openid,deviceid=deviceid).first()
 
@@ -2064,6 +2068,9 @@ def update_devicname():
 
             device1 = Device.query.filter_by(deviceid=device.deviceid).first()
 
+            if devicename in device_names:
+                return jsonify(ret_data(DEVICE_NAME_EXIST))
+
             device1.devicename = devicename
 
         else:
@@ -2072,6 +2079,9 @@ def update_devicname():
                 return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
             elif sc.permission_level == 2:
                 device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+
+                if devicename in device_names:
+                    return jsonify(ret_data(DEVICE_NAME_EXIST))
 
                 device1.devicename = devicename
             else:
@@ -3880,7 +3890,7 @@ def multiExternalDeviceManage():
     # 20231218 xiaojuzi v2 画小宇设备列表分组条件判断查询
     sceneid = request.form.get('sceneid', None)
     if sceneid:
-        devices = User_Device.query.filter_by(userid=openid, sceneid=sceneid).all()
+        devices = User_Device.query.filter_by(userid=openid, sceneid=sceneid).order_by(User_Device.status_update.desc()).all()
 
         # 判断设备
         device_data = []

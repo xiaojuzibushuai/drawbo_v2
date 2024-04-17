@@ -21,6 +21,9 @@ import bcrypt
 from cryptography.fernet import Fernet
 import base64
 
+from models.device import Device
+from sys_utils import db
+
 
 def test():
     code = None
@@ -243,8 +246,16 @@ def test12():
     video = [{'video_files':video_data1},{'video_files':video_data2}]
     # sorted_video_data = sorted(video_data, key=lambda x: (int(x['episode']), -int(x['dpi'])))
     for cl in video:
+        for data in cl['video_files']:
+            if 'video_base_url' in data:
+                data['video_base_url'] = data['video_base_url'].replace('cdn.course.v5ky.com',
+                                                                        'kaiyu-video-resource.oss-cn-wuhan-lr.aliyuncs.com')
+
         sorted_video_data = sorted(cl['video_files'], key=lambda x: (int(x['episode']), -int(x['dpi'])))
+
         cl['video_files'] = sorted_video_data
+
+
     print(video)
 
 
