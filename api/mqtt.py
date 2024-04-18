@@ -1631,35 +1631,47 @@ def upgrade():
     if not openid:
         return jsonify(ret_data(PARAMS_ERROR))
 
+    #20240418 xiaojuzi
+    deviceid = request.form.get('deviceid', None)
+
+    device = Device.query.filter_by(deviceid=deviceid).first()
+
+    if not device:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
+
     push_json = {
         'type': 6,
         'fromuser': openid,
-        'deviceid': '',
+        'deviceid': deviceid,
         'message': {
             'url': '%s/device/test2-fdr' % HOST
         }
     }
-    logging.info(push_json)
 
-    count = 0
+    device.is_upgrade = 0
 
-    #修改的地方 xiaojuzi v2
+    errcode = send_message(push_json)
 
-    device_list = sortDeviceByMaster(openid)
+    logging.info('固件升级 errcode : %s' % errcode)
 
-    if not device_list:
-        return jsonify(ret_data(DEVICE_NOT_FIND))
+    # count = 0
 
-    for device in device_list:
 
-        push_json['deviceid'] =device.deviceid
+    # device_list = sortDeviceByMaster(openid)
+    #
+    # if not device_list:
+    #     return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    # for device in device_list:
+
+        # push_json['deviceid'] =device.deviceid
 
         #1 为true 0为false
-        device.is_upgrade = 0
-
-        errcode = send_message(push_json)
-
-        logging.info('固件升级 errcode : %s' % errcode)
+        # device.is_upgrade = 0
+        #
+        # errcode = send_message(push_json)
+        #
+        # logging.info('固件升级 errcode : %s' % errcode)
 
         # 新增发消息等待20231107 xiaojuzi
         # if count < 5:
