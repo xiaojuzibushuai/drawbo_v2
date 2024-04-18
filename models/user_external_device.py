@@ -23,6 +23,9 @@ class UserExternalDevice(db.Model):
 
     # 0为主动绑定 1为分享绑定
     status = db.Column(db.Integer, default=-1)
+    
+    is_del = db.Column(db.Integer, nullable=False, default=0)       # 删除
+    
 
     #分享人
     shareby_userid = db.Column(db.String(64),default="")
