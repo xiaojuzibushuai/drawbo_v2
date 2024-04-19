@@ -1381,6 +1381,14 @@ def videoAutoPushDatToDevice():
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
+    success_send = 0
+    errc_send = 0
+    send_result = {
+        "success_send" : 0,
+        "errc_send" : 0,
+        "send_devices_count": 0,
+    }
+
     for device in device_list:
         #20240223 新需求更改 xiaojuzi 记录 添画需要判断过否在线  20240308 不管在不在线直接发 暂时修改
         # device1 = Device.query.filter_by(deviceid=device.deviceid).first()
@@ -1400,9 +1408,19 @@ def videoAutoPushDatToDevice():
 
         errcode = send_message(push_json)
 
+        if errcode == 0:
+            success_send += 1
+        else:
+            errc_send += 1
+
         logging.info('push_dat发送的result：%s ' % errcode)
 
-    return jsonify(ret_data(SUCCESS))
+    send_result['success_send'] = success_send
+    send_result['errc_send'] = errc_send
+    send_result['send_devices_count'] = len(device_list)
+
+    return jsonify(ret_data(SUCCESS, data=send_result))
+
 
 
 # 下载文件到本地 xiaojuzi 20240313
@@ -1945,6 +1963,14 @@ def videoAutoPushActionToDevice():
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
+    success_send = 0
+    errc_send = 0
+    send_result = {
+        "success_send" : 0,
+        "errc_send" : 0,
+        "send_devices_count":0,
+    }
+
     for device in device_list:
         push_json = {
             'type': 3,
@@ -1959,9 +1985,18 @@ def videoAutoPushActionToDevice():
 
         errcode = send_message(push_json)
 
+        if errcode == 0:
+            success_send += 1
+        else:
+            errc_send += 1
+
         logging.info('push_action发送的result：%s ' % errcode)
 
-    return jsonify(ret_data(SUCCESS))
+    send_result['success_send'] = success_send
+    send_result['errc_send'] = errc_send
+    send_result['send_devices_count'] = len(device_list)
+
+    return jsonify(ret_data(SUCCESS,data=send_result))
 
 
 
