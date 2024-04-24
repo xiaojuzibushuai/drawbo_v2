@@ -39,7 +39,7 @@ from models.sms_send import SmsSend
 from models.user import User
 from models.user_course import User_Course
 from models.user_device import User_Device
-from script.mosquitto_product import send_message
+from script.mosquitto_product import send_message, send_message_to_topic
 from sys_utils import app, db
 from utils.OSSUploader import upload_file, bucket, delete_folder
 from utils.error_code import PARAMS_ERROR, PHONE_NUMBER_ERROR, PHONE_NOT_FIND, SUCCESS, PASSWORD_ERROR, SMS_SEND_ERROR, \
@@ -1332,12 +1332,12 @@ def getCourseVideoListByCourseId():
 # 需要前端传递设置的设备  定为场景id方便管理 20240131
 # 20240313 重构优化此方法 xiaojuzi v2
 @web_back_api.route('/push_dat', methods=['POST'])
-@jwt_required()
+# @jwt_required()
 def videoAutoPushDatToDevice():
 
-    current_user = get_jwt_identity()
-    if not current_user:
-        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    # current_user = get_jwt_identity()
+    # if not current_user:
+    #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
     url = request.form.get('url', None)
     #20240204 xiaojuzi v2  修改
@@ -1347,7 +1347,7 @@ def videoAutoPushDatToDevice():
         return jsonify(ret_data(PARAMS_ERROR))
 
     #updateby xiaojuzi v2 20240131
-    openid = current_user['openid']
+    # openid = current_user['openid']
 
     #先进行dat文件判断是否已经下载过 20240313 xiaojuzi
     # 20240124 xiaojuzi v2 因不同平台协调问题 按领导方案修改逻辑
@@ -1397,7 +1397,7 @@ def videoAutoPushDatToDevice():
         push_json = {
             'type': 2,
             'deviceid': device.deviceid,
-            'fromuser': openid,
+            'fromuser': "",
             'message': {
                 'arg': file_name,
                 'url': HOST + f'/test/{file_name}'
@@ -1406,7 +1406,8 @@ def videoAutoPushDatToDevice():
 
         logging.info(push_json)
 
-        errcode = send_message(push_json)
+        # 修改发送逻辑
+        errcode = send_message_to_topic(device.topic,push_json)
 
         if errcode == 0:
             success_send += 1
