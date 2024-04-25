@@ -5,6 +5,8 @@ import time
 
 from flask import request, jsonify, Blueprint
 import logging
+
+from api.auth import jwt_redis_blocklist
 from config import HOST, API_KEY
 from models.course import DeviceCourse, Course, Category, DeviceCategory
 from models.device import Device, QRCodeSerial
@@ -14,7 +16,7 @@ from script.mosquitto_product import send_message
 from sys_utils import db
 from utils.error_code import *
 from utils.tools import iot_msg_manager, create_noncestr, ret_data, make_device_qrcode
-from datetime import datetime
+from datetime import datetime, timedelta
 
 iot_api = Blueprint('iot', __name__, url_prefix='/api/v1/iot')
 
@@ -166,23 +168,48 @@ def iot_notify():
     i_type = request.json.get('type', 0)
     status = request.json.get('status', None)
     if not apikey or not deviceid or not status:
+        logging.info('状态上报参数不合法：apikey: %s, deviceid: %s, type: %s, status: %s' % (apikey, deviceid, i_type, status))
         return jsonify(iot_msg_manager(PARAMS_ERROR))
-    # 更新设备表
-    if i_type:
-        Device.query.filter_by(deviceid=deviceid).update({
-            Device.status_update: datetime.now()
-        })
-        db.session.commit()
-        return jsonify({'code': SUCCESS})
+
+    #更新状态报告缓存
+    count = jwt_redis_blocklist.get(f"iot_notify:{deviceid}")
+    if count:
+        newCount = jwt_redis_blocklist.incr(f"iot_notify:{deviceid}")
+
+        if newCount > 20:
+            # 状态上报时间间隔大于20s，则更新设备表
+            logging.info('更新缓存成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
+            # # 更新设备表
+            if i_type:
+                Device.query.filter_by(deviceid=deviceid).update({
+                    Device.status_update: datetime.now()
+                })
+                db.session.commit()
+
+                #更新缓存
+                jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
+
+                return jsonify({'code': SUCCESS})
+            else:
+                # 只记录重要的状态变更日志
+                # logging.info('apikey: %s, deviceid: %s, type: %s, status: %s' % (apikey, deviceid, i_type, status))
+                Device.query.filter_by(deviceid=deviceid).update({
+                    Device.d_type: i_type,
+                    Device.status: status['devstatus']
+                })
+                db.session.commit()
+
+                #更新缓存
+                jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
+
+                return jsonify(iot_msg_manager(SUCCESS))
     else:
-        # 只记录重要的状态变更日志
-        logging.info('apikey: %s, deviceid: %s, type: %s, status: %s' % (apikey, deviceid, i_type, status))
-        Device.query.filter_by(deviceid=deviceid).update({
-            Device.d_type: i_type,
-            Device.status: status['devstatus']
-        })
-        db.session.commit()
-    return jsonify(iot_msg_manager(SUCCESS))
+        jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
+        # jwt_redis_blocklist.expire("iot_notify",timedelta(days=7))
+
+        logging.info('缓存成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
+
+    return jsonify({'code': SUCCESS})
 
 @iot_api.route('/message/send', methods=['POST'])
 def iot_send():

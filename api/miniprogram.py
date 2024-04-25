@@ -1911,8 +1911,12 @@ def multi_device_manage():
             else:
                 device_dict['status_update'] = device.status_update
 
+            # notify_time = jwt_redis_blocklist.hget("iot_notify",device.deviceid)
+            # if not notify_time:
+            #     notify_time = 0
 
-            if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
+
+            if int(datetime.now().timestamp()) - int(device1.status_update.timestamp()) <= DEVICE_EXPIRE_TIME:
 
                 device_dict['data']['dev_online'] = True
                 device_dict['data']['msg'] = '设备在线'
@@ -1993,7 +1997,11 @@ def multi_device_manage():
         else:
             device_dict['status_update'] = device.status_update
 
-        if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
+        # notify_time = jwt_redis_blocklist.hget("iot_notify", device.deviceid)
+        # if not notify_time:
+        #     notify_time = 0
+
+        if int(datetime.now().timestamp()) - int(device1.status_update.timestamp()) <= DEVICE_EXPIRE_TIME:
 
             device_dict['data']['dev_online'] = True
             device_dict['data']['msg'] = '设备在线'
@@ -2404,8 +2412,12 @@ def update_wakeword():
 
         device1 = Device.query.filter_by(deviceid=deviceid).first()
 
+        # notify_time = jwt_redis_blocklist.hget("iot_notify", deviceid)
+        # if not notify_time:
+        #     notify_time = 0
+
         #在进一步行判断
-        if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+        if (device.is_choose == True) & (int(datetime.now().timestamp()) - int(device1.status_update.timestamp()) <= DEVICE_EXPIRE_TIME):
 
             device1.wakeword = wakeword
 
@@ -2425,9 +2437,14 @@ def update_wakeword():
             return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
         elif sc.permission_level == 2:
             device1 = Device.query.filter_by(deviceid=deviceid).first()
+
+            # notify_time = jwt_redis_blocklist.hget("iot_notify",deviceid)
+            # if not notify_time:
+            #     notify_time = 0
+
             # 在进一步行判断
             if (device.is_choose == True) & (
-                    int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+                    int(datetime.now().timestamp()) - int(device1.status_update.timestamp()) <= DEVICE_EXPIRE_TIME):
                 device1.wakeword = wakeword
 
                 result = mqtt_push_wakeword_data(openid, deviceid, wakeword)
@@ -3261,7 +3278,11 @@ def dev_online():
 
         device1 = Device.query.filter_by(deviceid=device.deviceid).first()
 
-        if int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME:
+        # notify_time = jwt_redis_blocklist.hget("iot_notify", device.deviceid)
+        # if not notify_time:
+        #     notify_time = 0
+
+        if int(datetime.now().timestamp()) - int(device1.status_update.timestamp()) <= DEVICE_EXPIRE_TIME:
             data['dev_online'] = True
             data['msg'] = '设备在线'
 
@@ -4458,7 +4479,11 @@ def getDeviceByOpenid(openid: str) -> list:
         for device in devices:
             device1 = Device.query.filter_by(deviceid=device.deviceid).first()
 
-            if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+            # notify_time = jwt_redis_blocklist.hget("iot_notify",device.deviceid)
+            # if not notify_time:
+            #     notify_time = 0
+
+            if (device.is_choose == True) & (int(datetime.now().timestamp()) - int(device1.status_update.timestamp()) <= DEVICE_EXPIRE_TIME):
                 device_list.append(device1)
 
         return device_list

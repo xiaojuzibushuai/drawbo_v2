@@ -122,7 +122,7 @@ SMS_API_KEY = 'OK4QhEunXLN5wmMwyfNVmNQG6BzXMysu'
 #短信过期时间
 SMS_EXPIRE_TIME = 120
 #设备在线判断时间
-DEVICE_EXPIRE_TIME = 30
+DEVICE_EXPIRE_TIME = 60
 
 #认证授权配置 20231204 xiaojuzi timedelta(hours=1)
 JWT_SECRET_KEY = 'FrZrkpM8Xwect1f2E1KfAB2bfEA9qYcE'
