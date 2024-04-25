@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta
+
 from WXBizDataCrypt import WXBizDataCrypt
+from api.auth import jwt_redis_blocklist
 from models.course import Course
 from utils.OSSUploader import list_oss_file
 from utils.tools import dict_drop_field
@@ -29,10 +32,18 @@ def main():
 
 def test1():
    data = list_oss_file()
+   
+   # jwt_redis_blocklist.hset("iot_notify","123", datetime.now().timestamp)
+   # jwt_redis_blocklist.expire("iot_notify",timedelta(days=7))
+   
+
 
 
 if __name__ == '__main__':
     test1()
+
+
+
     # main()
 
     # data_list = [
