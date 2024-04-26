@@ -297,7 +297,7 @@ def getCategory():
     ).filter(Category.index_cate == 1).group_by(Category.id).all()
 
     category_list = model_to_dict(cate_objs)
-    category_list = dict_fill_url(category_list, ['save_path'])
+    # category_list = dict_fill_url(category_list, ['save_path'])
 
     for cate in category_list:
         cate['lock'] = False
@@ -380,7 +380,7 @@ def getCourse():
 
     if course_objs:
         course_list = model_to_dict(course_query)
-        course_list = dict_fill_url(course_list, ['img_files'])
+        # course_list = dict_fill_url(course_list, ['img_files'])
 
         #前端约定 更新该课程的video_files内的排序 20240223 xiaojuzi
         for cl in course_list:

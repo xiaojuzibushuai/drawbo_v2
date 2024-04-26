@@ -2814,7 +2814,7 @@ def category():
         #返回列表
         category_list = model_to_dict(filtered_data)
 
-        category_list = dict_fill_url(category_list, ['save_path'])
+        # category_list = dict_fill_url(category_list, ['save_path'])
 
     else:
         # 未绑定设备，也展示类别，但全部锁住
@@ -2831,7 +2831,7 @@ def category():
         ).filter(Category.index_cate == 1).group_by(Category.id).all()
 
         category_list = model_to_dict(cate_objs)
-        category_list = dict_fill_url(category_list, ['save_path'])
+        # category_list = dict_fill_url(category_list, ['save_path'])
 
         for cate in category_list:
             #全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 cate['lock'] = True  TODO
@@ -2939,7 +2939,7 @@ def course():
 
     if course_objs:
         course_list = model_to_dict(course_query)
-        course_list = dict_fill_url(course_list, ['img_files'])
+        # course_list = dict_fill_url(course_list, ['img_files'])
 
         # 全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 没有这个循环 TODO
         # for data in course_list:
