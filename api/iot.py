@@ -175,10 +175,12 @@ def iot_notify():
     count = jwt_redis_blocklist.get(f"iot_notify:{deviceid}")
     if count:
         newCount = jwt_redis_blocklist.incr(f"iot_notify:{deviceid}")
+        jwt_redis_blocklist.set(f"iot_notify:{deviceid}", newCount, ex=timedelta(seconds=120))
+        logging.info('更新缓存次数成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
 
         if newCount > 20:
             # 状态上报时间间隔大于20s，则更新设备表
-            logging.info('更新缓存成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
+            logging.info('更新数据库成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
             # # 更新设备表
             if i_type:
                 Device.query.filter_by(deviceid=deviceid).update({
