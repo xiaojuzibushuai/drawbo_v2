@@ -72,7 +72,9 @@ def iot_topic():
     if not apikey or not deviceid:
         return jsonify(iot_msg_manager(PARAMS_ERROR))
     clientid = create_noncestr()
-    topic = 'iot/2/%s' % str(int(time.time()))
+    # 新写主题
+    topic = "iot/2/%s" % deviceid + str(random.randint(0,100))
+    # topic = 'iot/2/%s' % str(int(time.time()))
     device = Device.query.filter_by(deviceid=deviceid).first()
 
     if device:
@@ -389,7 +391,9 @@ def device_create():
     # deviceid = deviceid.replace(":", "")
 
     # apikey先写死一个，以后可能会有扩展
-    topic = 'iot/2/%s' % str(int(time.time()))  # 主题
+    # topic = 'iot/2/%s' % deviceid+str(int(time.time()))  # 主题
+    # 新写主题
+    topic = "iot/2/%s" % deviceid + str(random.randint(0,100))
     clientid = create_noncestr()
     if apikey == API_KEY:
         device = Device.query.filter_by(deviceid=deviceid).first()
