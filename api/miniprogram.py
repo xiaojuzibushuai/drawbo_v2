@@ -3753,8 +3753,8 @@ def createExternalDevice():
     devicename = request.form.get('devicename',None)
     d_type = int(request.form.get('d_type',None))
 
-    deviceid = deviceid.replace(':', '')
-    mac = mac.replace(':', '')
+    deviceid = deviceid.replace(':', '').upper()
+    mac = mac.replace(':', '').upper()
 
     logging.info('d_type: %s,devicename: %s, deviceid: %s, mac: %s' % (d_type,devicename, deviceid, mac))
 
