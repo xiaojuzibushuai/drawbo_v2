@@ -1322,6 +1322,11 @@ def getCourseVideoListByCourseId():
 
         sorted_data_list = sorted(data_list, key=lambda x: (int(x['episode']), -int(x['dpi'])))
 
+        # # 20240319 领导要求 临时关闭CDN加速 临时逻辑
+        # for data in sorted_data_list:
+        #     data['video_base_url'] = data['video_base_url'].replace('cdn.course.v5ky.com',
+        #                                                             'kaiyu-video-resource.oss-cn-wuhan-lr.aliyuncs.com')
+
         return jsonify(ret_data(SUCCESS, data=sorted_data_list))
 
     else:

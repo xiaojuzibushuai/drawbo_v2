@@ -61,7 +61,7 @@ def iot_topic():
     Path: /iot/mqtt/topic
     :return: json
     """
-    # # 用于接口请求授权验证 先注解掉
+    # 用于接口请求授权验证 领导要求这样写
     # apikey = request.json.get('apikey', None)
     # # 设备唯一性标识
     # deviceid = request.json.get('deviceid', None)
@@ -77,7 +77,7 @@ def iot_topic():
     #
     # return jsonify(iot_msg_manager(SUCCESS,payload))
 
-    # 用于接口请求授权验证
+    # 用于接口请求授权验证 正常逻辑
     apikey = request.json.get('apikey', None)
     # 设备唯一性标识
     deviceid = request.json.get('deviceid', None)
