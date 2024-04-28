@@ -61,7 +61,22 @@ def iot_topic():
     Path: /iot/mqtt/topic
     :return: json
     """
-    payload = {}
+    # # 用于接口请求授权验证 先注解掉
+    # apikey = request.json.get('apikey', None)
+    # # 设备唯一性标识
+    # deviceid = request.json.get('deviceid', None)
+    # custom = request.json.get('custom', 'custom')  # 配网时，此字段会发送
+    # d_type = request.json.get('type', 0)           # 第二代主板，此字段为2，否则不上传 add by 20230708
+    # logging.info('apikey: %s, deviceid: %s, custom: %s, d_type: %s' % (apikey, deviceid, custom, d_type))
+    # payload = {}
+    # clientid = create_noncestr()
+    # payload['clientid'] = clientid
+    # payload['topic'] = 'iot/2/1705395687'
+    # logging.info("iot_clientid: %s",clientid)
+    #
+    #
+    # return jsonify(iot_msg_manager(SUCCESS,payload))
+
     # 用于接口请求授权验证
     apikey = request.json.get('apikey', None)
     # 设备唯一性标识
@@ -72,6 +87,7 @@ def iot_topic():
     if not apikey or not deviceid:
         return jsonify(iot_msg_manager(PARAMS_ERROR))
     clientid = create_noncestr()
+    payload = {}
     # 新写主题
     topic = "iot/2/%s" % deviceid + str(random.randint(0,100))
     # topic = 'iot/2/%s' % str(int(time.time()))
@@ -105,7 +121,7 @@ def iot_topic():
         payload['topic'] = topic
         payload['clientid'] = clientid
 
-    # xiaojuzi v2版本
+    # # xiaojuzi v2版本
     if device.software_version == 'v2':
 
         # 若没有设置名字则自动生成 xiaojuzi
@@ -152,7 +168,7 @@ def iot_topic():
             logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
         else:
             logging.info(user)
-        return jsonify(iot_msg_manager(SUCCESS, payload))
+    return jsonify(iot_msg_manager(SUCCESS, payload))
 
 
 @iot_api.route('/status/notify', methods=['POST'])
