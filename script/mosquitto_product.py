@@ -1,6 +1,7 @@
 import json
 import logging
 
+from api.auth import jwt_redis_blocklist
 from config import MQTT_USERNAME, MQTT_PASSWORD, MQTT_HOST, MQTT_PORT
 from models.device import Device
 from models.user import User, FaceInfo
@@ -27,23 +28,39 @@ def send_message(push_dict: dict)->int:
         topic = push_dict.get('topic')
         status = push_dict.pop('status')
     else:
+        #
+        # user = User.query.filter_by(openid=openid).first()
+        # if not user:
+        #     return PARAMS_ERROR
+        #
+        # #xiaojuzi 修改的地方
+        # if deviceid:
+        #     device = User_Device.query.filter_by(userid=openid,deviceid=deviceid).first()
+        #     if not device:
+        #         return UNBIND_DEVICE
+        #
+        #     #获取该设备信息
+        #     devices = Device.query.filter_by(deviceid=deviceid).first()
+        #
+        #     # 取出topic和当前设备状态
+        #     topic = devices.topic
+        #     status = devices.status
 
-        user = User.query.filter_by(openid=openid).first()
-        if not user:
-            return PARAMS_ERROR
 
-        #xiaojuzi 修改的地方
-        if deviceid:
-            device = User_Device.query.filter_by(userid=openid,deviceid=deviceid).first()
-            if not device:
-                return UNBIND_DEVICE
+        # 20240430 xiaojuzi 新逻辑实现
+        topic = jwt_redis_blocklist.hget(f"iot_notify:{deviceid}","topic")
+        status = jwt_redis_blocklist.hget(f"iot_notify:{deviceid}","updateStatus")
 
+        #补偿机制
+        if not topic or not status:
             #获取该设备信息
             devices = Device.query.filter_by(deviceid=deviceid).first()
-
+            if not devices:
+                return UNBIND_DEVICE
             # 取出topic和当前设备状态
             topic = devices.topic
             status = devices.status
+
 
     m_type = push_dict['type']
     logging.info('topic: %s, status: %s，m_type: %s, push_dict: %s' % (topic, status, m_type, push_dict.__str__()))

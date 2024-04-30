@@ -10,6 +10,7 @@ import logging
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func, Integer, cast
 
+from api.auth import jwt_redis_blocklist
 from config import HOST, ADMIN_HOST, DEVICE_EXPIRE_TIME
 from models.course import Course, DeviceCourse
 from models.device import Device
@@ -1316,8 +1317,12 @@ def get_mqtt_push_direction(openid :str,deviceids :list,direction :str):
         device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
 
         if device:
+            notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
+            if not notify_time:
+                notify_time = 0
+
             if (device.is_choose == True) & (
-                    int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+                    int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
                 #20231130 需求更改 xiaojuzi v2
                 if int(direction) == 1:
 
@@ -1367,8 +1372,12 @@ def mqtt_push_direction():
     device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
 
     if device:
+        notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
+        if not notify_time:
+            notify_time = 0
+
         if (device.is_choose == True) & (
-                int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+                int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
 
             # 20231130 需求更改 xiaojuzi v2
             if int(direction) == 1:
@@ -1410,8 +1419,12 @@ def get_mqtt_push_volume(openid :str,deviceids :list,volume :int):
         device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
 
         if device:
+            notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
+            if not notify_time:
+                notify_time = 0
+
             if (device.is_choose == True) & (
-                    int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+                    int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
                 device1.volume = volume
 
                 # 发送消息
@@ -1459,8 +1472,13 @@ def mqtt_push_volume():
     device = User_Device.query.filter_by(userid=openid, deviceid=deviceid).first()
 
     if device:
+
+        notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
+        if not notify_time:
+            notify_time = 0
+
         if (device.is_choose == True) & (
-            int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+            int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
 
             device1.volume = volume
 
@@ -1706,7 +1724,11 @@ def sortDeviceByMaster(openid: str)-> list:
     for device in devices:
         device1 = Device.query.filter_by(deviceid=device.deviceid).first()
 
-        if (device.is_choose == True) & (int(datetime.now().timestamp()) - device1.status_update.timestamp() <= DEVICE_EXPIRE_TIME):
+        notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
+        if not notify_time:
+            notify_time = 0
+
+        if (device.is_choose == True) & (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
             if device1.is_master:
                 device_list.insert(0,device1)
             else:

@@ -155,6 +155,10 @@ def iot_topic():
             logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
         else:
             logging.info(user)
+
+        #新逻辑将topic放到缓存 20240430 xiaojuzi
+        jwt_redis_blocklist.hset(f"iot_notify:{deviceid}", "topic", payload['topic'])
+
         return jsonify(iot_msg_manager(SUCCESS, payload))
 
     # 原来的v1版本号 xiaojuzi
@@ -168,6 +172,10 @@ def iot_topic():
             logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
         else:
             logging.info(user)
+
+        #新逻辑将topic放到缓存 20240430 xiaojuzi
+        jwt_redis_blocklist.hset(f"iot_notify:{deviceid}", "topic", payload['topic'])
+
     return jsonify(iot_msg_manager(SUCCESS, payload))
 
 
@@ -181,6 +189,59 @@ def iot_notify():
     Path: /iot/status/notify
     :return: json
     """
+    # apikey = request.json.get('apikey', None)
+    # deviceid = request.json.get('deviceid', None)
+    # i_type = request.json.get('type', 0)
+    # status = request.json.get('status', None)
+    # if not apikey or not deviceid or not status:
+    #     logging.info('状态上报参数不合法：apikey: %s, deviceid: %s, type: %s, status: %s' % (apikey, deviceid, i_type, status))
+    #     return jsonify(iot_msg_manager(PARAMS_ERROR))
+    #
+    # #更新状态报告缓存
+    # count = jwt_redis_blocklist.get(f"iot_notify:{deviceid}")
+    # if count:
+    #     newCount = jwt_redis_blocklist.incr(f"iot_notify:{deviceid}")
+    #     jwt_redis_blocklist.set(f"iot_notify:{deviceid}", newCount, ex=timedelta(seconds=120))
+    #     # logging.info('更新缓存次数成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
+    #
+    #     # # 更新设备表
+    #     if i_type:
+    #         if newCount > 20:
+    #             # 状态上报时间间隔大于20次，则更新设备表
+    #             logging.info('状态上报次数足够，更新数据库成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
+    #
+    #             Device.query.filter_by(deviceid=deviceid).update({
+    #                 Device.status_update: datetime.now()
+    #             })
+    #             db.session.commit()
+    #
+    #             # 更新缓存
+    #             jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
+    #
+    #             return jsonify({'code': SUCCESS})
+    #
+    # else:
+    #     jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
+    #     # jwt_redis_blocklist.expire("iot_notify",timedelta(days=7))
+    #
+    #     logging.info('缓存成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
+    #
+    # #运行结束返回 立即更新设备表 xiaojuzi
+    # if not i_type:
+    #     logging.info('运行结束立即更新数据库状态： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
+    #     Device.query.filter_by(deviceid=deviceid).update({
+    #         Device.d_type: i_type,
+    #         Device.status: status['devstatus'],
+    #         Device.status_update: datetime.now()
+    #     })
+    #     db.session.commit()
+    #
+    #     # 更新缓存
+    #     jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
+    #
+    # return jsonify(iot_msg_manager(SUCCESS))
+
+    #20240430 新方法实现逻辑 xiaojuzi
     apikey = request.json.get('apikey', None)
     deviceid = request.json.get('deviceid', None)
     i_type = request.json.get('type', 0)
@@ -189,51 +250,23 @@ def iot_notify():
         logging.info('状态上报参数不合法：apikey: %s, deviceid: %s, type: %s, status: %s' % (apikey, deviceid, i_type, status))
         return jsonify(iot_msg_manager(PARAMS_ERROR))
 
-    #更新状态报告缓存
-    count = jwt_redis_blocklist.get(f"iot_notify:{deviceid}")
-    if count:
-        newCount = jwt_redis_blocklist.incr(f"iot_notify:{deviceid}")
-        jwt_redis_blocklist.set(f"iot_notify:{deviceid}", newCount, ex=timedelta(seconds=120))
-        # logging.info('更新缓存次数成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
-
-        # # 更新设备表
-        if i_type:
-            if newCount > 20:
-                # 状态上报时间间隔大于20次，则更新设备表
-                logging.info('状态上报次数足够，更新数据库成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
-
-                Device.query.filter_by(deviceid=deviceid).update({
-                    Device.status_update: datetime.now()
-                })
-                db.session.commit()
-
-                # 更新缓存
-                jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
-
-                return jsonify({'code': SUCCESS})
-
+    if i_type:
+        # 更新设备在线时间
+        jwt_redis_blocklist.hset(f"iot_notify:{deviceid}","updateTime",int(datetime.now().timestamp()))
+        jwt_redis_blocklist.expire(f"iot_notify:{deviceid}",timedelta(days=7))
+        logging.info('Update device online time ： deviceid: %s, type: %s, updateTime: %s' % (deviceid, i_type, int(datetime.now().timestamp())))
     else:
-        jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
-        # jwt_redis_blocklist.expire("iot_notify",timedelta(days=7))
+        # 更新设备状态
+        jwt_redis_blocklist.hset(f"iot_notify:{deviceid}","updateStatus",status['devstatus'])
+        jwt_redis_blocklist.hset(f"iot_notify:{deviceid}", "updateType", i_type)
+        jwt_redis_blocklist.expire(f"iot_notify:{deviceid}",timedelta(days=7))
 
-        logging.info('缓存成功： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
+        logging.info('Update device status ： deviceid: %s, updateType: %s, updateStatus: %s' % (deviceid, i_type, status['devstatus']))
 
-    #运行结束返回 立即更新设备表 xiaojuzi
-    if not i_type:
-        logging.info('运行结束立即更新数据库状态： deviceid: %s, type: %s, status: %s' % (deviceid, i_type, status))
-        Device.query.filter_by(deviceid=deviceid).update({
-            Device.d_type: i_type,
-            Device.status: status['devstatus'],
-            Device.status_update: datetime.now()
-        })
-        db.session.commit()
-
-        # 更新缓存
-        jwt_redis_blocklist.set(f"iot_notify:{deviceid}", 1, ex=timedelta(seconds=120))
 
     return jsonify(iot_msg_manager(SUCCESS))
 
-    # return jsonify({'code': SUCCESS})
+
 
 @iot_api.route('/message/send', methods=['POST'])
 def iot_send():
