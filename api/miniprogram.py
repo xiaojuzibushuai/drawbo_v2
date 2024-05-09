@@ -2727,117 +2727,145 @@ def category():
     :return: json
     """
 
-    # openid = request.form.get('openid', None)
-    # 20240202 xiaojuzi v2 去掉openid的依赖性
+    #更新新逻辑 20240509 xiaojuzi v2
     current_user = get_jwt_identity()
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-    openid = current_user['openid']
-    #只要绑定设备默认所有设备的分类如果开启都可共享
-    # 获取用户绑定选中且在线的设备
-    device_list = getDeviceByOpenid(openid)
 
-#     SELECT
-#     category.id,
-#     category.title,
-#     category.detail,
-#     category.save_path,
-#     category.index_cate,
-#     category.priority,
-#     device_category.lock,
-#     course.id AS free_course_id
-#     FROM category
-# LEFT JOIN device_category
-# ON device_category.category_id = category.id
-# LEFT JOIN course
-# ON course.category_id = category.id
-# WHERE category.index_cate = 1
-# AND
-# device_category.device_id in (
-#     select id from device where deviceid in (
-# select deviceid from user_device where userid = 'oN3gn5Dbdy9i6avagSpvymA473gQ'
-# )
-# )
-# GROUP BY
-# category.id
+    # 全部展示 分类不锁
+    cate_objs = db.session.query(
+        Category.id,
+        Category.title,
+        Category.detail,
+        Category.save_path,
+        Category.index_cate,
+        Category.priority,
+        Course.id.label('free_course_id'),
+    ).outerjoin(
+        Course, Course.category_id == Category.id
+    ).filter(Category.index_cate == 1).group_by(Category.id).all()
 
-    if device_list:
+    category_list = model_to_dict(cate_objs)
+    # category_list = dict_fill_url(category_list, ['save_path'])
 
-        # 过滤条件
-        query_deviceid = db.session.query(User_Device.deviceid).filter(User_Device.userid == openid)
-
-        query_filter=[ Category.index_cate == 1]
-
-        query_filter.append(Device.deviceid.in_(query_deviceid))
-
-        course_query = (db.session.query(
-                Category.id,
-                Category.title,
-                Category.detail,
-                Category.save_path,
-                Category.index_cate,
-                Category.priority,
-                DeviceCategory.lock,
-                Course.id.label('free_course_id'),
-            ).join(
-                DeviceCategory,
-                DeviceCategory.category_id == Category.id
-            ).outerjoin(
-                Course,
-                Course.category_id == Category.id
-            ).filter(*query_filter).group_by(Category.id,DeviceCategory.lock).all())
-
-        # 进行相同id判断为true的留下
-        ids = set()
-        filtered_data = []
-
-        #遍历获取数据id
-        for item in course_query:
-            ids.add(item[0])
-
-        # 遍历只要分类开放的id
-        for item in course_query:
-            if item[0] in ids and not item[6]:
-                filtered_data.append(item)
-                ids.remove(item[0])
-
-        if ids:
-            #将未开放的id 加入
-            for item in course_query:
-                if item[0] in ids:
-                    filtered_data.append(item)
-                    ids.remove(item[0])
-                    if not ids:
-                        break
-
-        #返回列表
-        category_list = model_to_dict(filtered_data)
-
-        # category_list = dict_fill_url(category_list, ['save_path'])
-
-    else:
-        # 未绑定设备，也展示类别，但全部锁住
-        cate_objs = db.session.query(
-            Category.id,
-            Category.title,
-            Category.detail,
-            Category.save_path,
-            Category.index_cate,
-            Category.priority,
-            Course.id.label('free_course_id'),
-        ).outerjoin(
-            Course, Course.category_id == Category.id
-        ).filter(Category.index_cate == 1).group_by(Category.id).all()
-
-        category_list = model_to_dict(cate_objs)
-        # category_list = dict_fill_url(category_list, ['save_path'])
-
-        for cate in category_list:
-            #全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 cate['lock'] = True  TODO
-            cate['lock'] = True
-            # cate['lock'] = False
+    for cate in category_list:
+        # cate['lock'] = True
+        cate['lock'] = False
 
     return jsonify(ret_data(SUCCESS, data=category_list))
+
+    #下述为老逻辑
+    # openid = request.form.get('openid', None)
+    # 20240202 xiaojuzi v2 去掉openid的依赖性
+#     current_user = get_jwt_identity()
+#     if not current_user:
+#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+#     openid = current_user['openid']
+#     #只要绑定设备默认所有设备的分类如果开启都可共享
+#     # 获取用户绑定选中且在线的设备
+#     device_list = getDeviceByOpenid(openid)
+#
+# #     SELECT
+# #     category.id,
+# #     category.title,
+# #     category.detail,
+# #     category.save_path,
+# #     category.index_cate,
+# #     category.priority,
+# #     device_category.lock,
+# #     course.id AS free_course_id
+# #     FROM category
+# # LEFT JOIN device_category
+# # ON device_category.category_id = category.id
+# # LEFT JOIN course
+# # ON course.category_id = category.id
+# # WHERE category.index_cate = 1
+# # AND
+# # device_category.device_id in (
+# #     select id from device where deviceid in (
+# # select deviceid from user_device where userid = 'oN3gn5Dbdy9i6avagSpvymA473gQ'
+# # )
+# # )
+# # GROUP BY
+# # category.id
+#
+#     if device_list:
+#
+#         # 过滤条件
+#         query_deviceid = db.session.query(User_Device.deviceid).filter(User_Device.userid == openid)
+#
+#         query_filter=[ Category.index_cate == 1]
+#
+#         query_filter.append(Device.deviceid.in_(query_deviceid))
+#
+#         course_query = (db.session.query(
+#                 Category.id,
+#                 Category.title,
+#                 Category.detail,
+#                 Category.save_path,
+#                 Category.index_cate,
+#                 Category.priority,
+#                 DeviceCategory.lock,
+#                 Course.id.label('free_course_id'),
+#             ).join(
+#                 DeviceCategory,
+#                 DeviceCategory.category_id == Category.id
+#             ).outerjoin(
+#                 Course,
+#                 Course.category_id == Category.id
+#             ).filter(*query_filter).group_by(Category.id,DeviceCategory.lock).all())
+#
+#         # 进行相同id判断为true的留下
+#         ids = set()
+#         filtered_data = []
+#
+#         #遍历获取数据id
+#         for item in course_query:
+#             ids.add(item[0])
+#
+#         # 遍历只要分类开放的id
+#         for item in course_query:
+#             if item[0] in ids and not item[6]:
+#                 filtered_data.append(item)
+#                 ids.remove(item[0])
+#
+#         if ids:
+#             #将未开放的id 加入
+#             for item in course_query:
+#                 if item[0] in ids:
+#                     filtered_data.append(item)
+#                     ids.remove(item[0])
+#                     if not ids:
+#                         break
+#
+#         #返回列表
+#         category_list = model_to_dict(filtered_data)
+#
+#         # category_list = dict_fill_url(category_list, ['save_path'])
+#
+#     else:
+#         # 未绑定设备，也展示类别，但全部锁住
+#         cate_objs = db.session.query(
+#             Category.id,
+#             Category.title,
+#             Category.detail,
+#             Category.save_path,
+#             Category.index_cate,
+#             Category.priority,
+#             Course.id.label('free_course_id'),
+#         ).outerjoin(
+#             Course, Course.category_id == Category.id
+#         ).filter(Category.index_cate == 1).group_by(Category.id).all()
+#
+#         category_list = model_to_dict(cate_objs)
+#         # category_list = dict_fill_url(category_list, ['save_path'])
+#
+#         for cate in category_list:
+#             #全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 cate['lock'] = True  TODO
+#             cate['lock'] = True
+#             # cate['lock'] = False
+#
+#     return jsonify(ret_data(SUCCESS, data=category_list))
 
     # 获取规整嵌套列表里面去外层列表 方式一
     # new_category_all_list = [category_list for innerlist in category_all_list for category_list in innerlist]
