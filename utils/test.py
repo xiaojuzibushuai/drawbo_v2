@@ -2,6 +2,7 @@ import base64
 import json
 import multiprocessing
 import os
+import random
 import subprocess
 import time
 from datetime import datetime, date, timedelta
@@ -260,9 +261,16 @@ def test12():
 
 
 if __name__ == '__main__':
-    ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
-    print(os.path.dirname(ffmpeg_path))
-    test12()
+    # ffmpeg_path = 'D:\\桌面\\ffmpeg\\ffmpeg.exe'
+    # print(os.path.dirname(ffmpeg_path))
+    # test12()
+    deviceid = '8c000c6d6004c972192FFff'
+    print(deviceid.upper())
+    print(deviceid.lower())
+    # topic = 'iot/2/%s' % deviceid + str(int(time.time()))
+    # topic1 = "iot/2/%s" % deviceid + str(random.randint(0,100))
+    # print(topic)
+    # print(topic1)
     # test8()
     # test9()
     # test10()

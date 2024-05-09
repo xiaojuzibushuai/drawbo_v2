@@ -293,6 +293,40 @@ def minWindow(self, s: str, t: str) -> str:
 
     return "" if ans[0] == float('inf') else s[ans[1]:ans[2] + 1]
 
+def minWindow1(self, s: str, t: str) -> str:
+    if not s or not t:
+        return ""
+
+    result = float('inf'), None, None
+
+    t_count = collections.Counter(t)
+    window = collections.defaultdict(int)
+    required = len(t)
+    left,right = 0,0
+    while right<len(s):
+        right_char = s[right]
+        if right_char in t_count:
+            window[right_char] += 1
+            if window[right_char] <= t_count[right_char]:
+                    required -= 1
+
+        while required == 0:
+            if right - left + 1 < result[0]:
+                result = (right - left + 1, left, right)
+            left_char = s[left]
+
+            if left_char in t_count:
+                window[left_char] -= 1
+                if window[left_char] < t_count[left_char]:
+                    required += 1
+            left += 1
+
+        right+=1
+
+    return "" if result[0] == float('inf') else s[result[1]:result[2] + 1]
+
+
+
 '''
 最大子数组和
 '''
@@ -1252,6 +1286,7 @@ def orangesRotting(self, grid: list[list[int]]) -> int:
         rotten_oranges = new_rotten_oranges
 
     return minutes if fresh_oranges == 0 else -1
+
 
 
 '''
