@@ -18,9 +18,13 @@ if os.getenv('drawbo'):
     HOST = 'http://iot.v5ky.com'
 
     HOSTNAME = 'LOCALHOST'
+    #线上
+    # HOSTNAME = '121.89.199.156:31228'
     DATABASE = 'drawbo_v2'
     USERNAME = 'root'
     PASSWORD = 'askroot'
+    # USERNAME = 'root'
+    # PASSWORD = '123456'
 
     DEBUG = False
 
