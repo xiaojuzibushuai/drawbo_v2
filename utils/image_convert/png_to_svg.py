@@ -1,3 +1,4 @@
+import logging
 import os
 
 import vtracer
@@ -110,6 +111,8 @@ def resize_images(file_path, target_resolution):
     # 获取原始分辨率
     original_resolution = image.size
 
+    # logging.info("原始分辨率："+str(original_resolution))
+
     # 计算调整比例
     ratio = min(target_resolution[0] / original_resolution[0], target_resolution[1] / original_resolution[1])
 
@@ -158,6 +161,9 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
         rotated_image = result
 
     cv.imwrite(temp_png_file_path, rotated_image)
+
+    # 调用函数进行图片分辨率统一
+    resize_images(temp_png_file_path,(360,360))
 
     vtracer.convert_image_to_svg_py(temp_png_file_path, svg_file_path, colormode='binary')
 
