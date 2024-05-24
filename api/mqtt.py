@@ -960,22 +960,29 @@ def testMqttPushGirlDataImpl():
     openid = current_user['openid']
 
     # 获取用户选择的设备 20240301 xiaojuzi
-    deviceid = request.form.get('deviceid', None)
+    # deviceid = request.form.get('deviceid', None)
 
     arg = 'girl'
 
-    push_json = {
-        'type': 2,
-        'deviceid': deviceid,
-        'fromuser': openid,
-        'message': {
-            # arg为文件夹名字  xiaojuzi 20231120
-            'arg': arg,
-            'url': HOST + '/test/' + arg
-        }
-    }
+    #20240524 群发机器案例
+    device_list = sortDeviceByMaster(openid)
 
-    errcode = send_message(push_json)
+    if not device_list:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    for device in device_list:
+        push_json = {
+            'type': 2,
+            'deviceid': device.deviceid,
+            'fromuser': openid,
+            'message': {
+                # arg为文件夹名字  xiaojuzi 20231120
+                'arg': arg,
+                'url': HOST + '/test/' + arg
+            }
+        }
+
+        errcode = send_message(push_json)
 
     return jsonify(ret_data(errcode))
 
@@ -991,22 +998,30 @@ def test1MqttPushGirlDataImpl():
     openid = current_user['openid']
 
     # 获取用户选择的设备 20240301 xiaojuzi
-    deviceid = request.form.get('deviceid', None)
+    # deviceid = request.form.get('deviceid', None)
+
+    #20240524 群发机器案例
+    device_list = sortDeviceByMaster(openid)
+
+    if not device_list:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
 
     arg = 'girl1'
 
-    push_json = {
-        'type': 2,
-        'deviceid': deviceid,
-        'fromuser': openid,
-        'message': {
-            # arg为文件夹名字  xiaojuzi 20231120
-            'arg': arg,
-            'url': HOST + '/test/' + arg
-        }
-    }
+    for device in device_list:
 
-    errcode = send_message(push_json)
+        push_json = {
+            'type': 2,
+            'deviceid': device.deviceid,
+            'fromuser': openid,
+            'message': {
+                # arg为文件夹名字  xiaojuzi 20231120
+                'arg': arg,
+                'url': HOST + '/test/' + arg
+            }
+        }
+
+        errcode = send_message(push_json)
 
     return jsonify(ret_data(errcode))
 
@@ -1154,37 +1169,37 @@ def mqttPushFacePictureDataImpl(openid: str,deviceid: str,arg: str):
 
     return errcode
 
-#下载上传的人脸转换数据 临时测试 20231120 xiaojuzi v2  注意：要自己生成一个为0的lrc文件不然机器执行会报错
-def mqttPushFacePictureDataImpl(openid: str,deviceid: str,arg: str):
-
-    """
-    数据文件 xiaojuzi v2
-    openid: 消息来源ID，微信openid/后台
-    deviceid: 设备id
-    :return:
-    """
-
-    logging.info('openid: %s, deviceid: %s, arg: %s' % (openid, deviceid,arg))
-
-    if not openid or not deviceid or not arg:
-        return jsonify(ret_data(PARAMS_ERROR))
-
-    push_json = {
-        'type': 2,
-        'deviceid': deviceid,
-        'fromuser': openid,
-        'message': {
-            #arg为文件夹名字  xiaojuzi 20231120
-            'arg': arg,
-            'url': HOST + '/test/' + arg
-        }
-    }
-
-    logging.info(push_json)
-
-    errcode = send_message(push_json)
-
-    return errcode
+# #下载上传的人脸转换数据 临时测试 20231120 xiaojuzi v2  注意：要自己生成一个为0的lrc文件不然机器执行会报错
+# def mqttPushFacePictureDataImpl(openid: str,deviceid: str,arg: str):
+#
+#     """
+#     数据文件 xiaojuzi v2
+#     openid: 消息来源ID，微信openid/后台
+#     deviceid: 设备id
+#     :return:
+#     """
+#
+#     logging.info('openid: %s, deviceid: %s, arg: %s' % (openid, deviceid,arg))
+#
+#     if not openid or not deviceid or not arg:
+#         return jsonify(ret_data(PARAMS_ERROR))
+#
+#     push_json = {
+#         'type': 2,
+#         'deviceid': deviceid,
+#         'fromuser': openid,
+#         'message': {
+#             #arg为文件夹名字  xiaojuzi 20231120
+#             'arg': arg,
+#             'url': HOST + '/test/' + arg
+#         }
+#     }
+#
+#     logging.info(push_json)
+#
+#     errcode = send_message(push_json)
+#
+#     return errcode
 
 #下载唤醒词数据 xiaojuzi 2023928
 def mqtt_push_wakeword_data(openid :str,deviceid :str,wakeword :str) -> object:
