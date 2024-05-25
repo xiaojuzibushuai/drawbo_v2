@@ -122,22 +122,19 @@ def length_within_points(a: Iterable, empty_value: Union[int, float] = 0) -> int
 
 def dump_rings_from_image(image: np.ndarray, output_path: str, plot_dict: dict = {"color": "k", "linewidth": 1.5},
                           default_height: float = 12) -> List[np.ndarray]:
-    # regular operation, no more explainations
+
     blur = cv2.GaussianBlur(image, (3, 3), 0)
     gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
     edge = cv2.Canny(gray, 50, 150)
 
-    # get ratio between width and height to adjust the final output
     valid_width = length_within_points(edge.sum(axis=0))
     valid_height = length_within_points(edge.sum(axis=1))
     true_ratio = valid_width / valid_height
 
-    # get contour of the edge image
     contour_tuple = cv2.findContours(edge, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
     contours = contour_tuple[0]
     rings = [np.array(c).reshape([-1, 2]) for c in contours]
 
-    # adjust coordinate system to the image coordinate system
     max_x, max_y, min_x, min_y = 0, 0, 0, 0
     for ring in rings:
         max_x = max(max_x, ring.max(axis=0)[0])
@@ -145,10 +142,8 @@ def dump_rings_from_image(image: np.ndarray, output_path: str, plot_dict: dict =
         min_x = max(min_x, ring.min(axis=0)[0])
         min_y = max(min_y, ring.min(axis=0)[1])
 
-    # adjust ratio
     plt.figure(figsize=[default_height * true_ratio, default_height])
 
-    # plot to the matplotlib
     for _, ring in enumerate(rings):
         close_ring = np.vstack((ring, ring[0]))
         xx = close_ring[..., 0]
@@ -215,5 +210,6 @@ if __name__ == "__main__":
     gcode_file_path = '44.gcode'
     dat_file_path = '44.dat'
 
+    # vtracer.convert_image_to_svg_py(png_file_path, svg_file_path, colormode='binary')
     convert_simple_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
     # test_convert_image_to_dat(1,png_file_path, svg_file_path, gcode_file_path, dat_file_path)

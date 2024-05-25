@@ -61,7 +61,6 @@ def send_message(push_dict: dict)->int:
             topic = devices.topic
             status = devices.status
 
-
     m_type = push_dict['type']
     logging.info('topic: %s, status: %s，m_type: %s, push_dict: %s' % (topic, status, m_type, push_dict.__str__()))
     push_dict['topic'] = topic
@@ -84,7 +83,8 @@ def send_message(push_dict: dict)->int:
         elif status == '144':
             return DEVICE_DOWNLOAD
         else:  # 否则返回h5提示
-            return DEVICE_BUSY
+            pass
+            # return DEVICE_BUSY
     return send_message_to_topic(topic, push_dict)
 
 
@@ -102,7 +102,7 @@ def send_external_message(push_dict: dict,topic)->int:
     # 计划异步实现 xiaojuzi 20231023 qos=0 最多一次  1 最少一次 2 只有一次
 
     client.publish(topic, push_body, 1)
-
+    logging.info("send_external_message_success: %s,topic: %s" % (push_body, topic))
     return SUCCESS
 
 def send_message_to_topic(topic: str, push_dict: dict)->int:
@@ -120,6 +120,8 @@ def send_message_to_topic(topic: str, push_dict: dict)->int:
     #计划异步实现 xiaojuzi 20231023 qos=0 最多一次  1 最少一次 2 只有一次
     
     client.publish(topic, push_body, 1)
+
+    logging.info("send_message_to_topic_success: %s,topic: %s" % (push_body, topic))
 
     return SUCCESS
 
