@@ -210,6 +210,9 @@ if __name__ == "__main__":
     gcode_file_path = '44.gcode'
     dat_file_path = '44.dat'
 
+
+    # convert_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
+
     # vtracer.convert_image_to_svg_py(png_file_path, svg_file_path, colormode='binary')
-    convert_simple_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
-    # test_convert_image_to_dat(1,png_file_path, svg_file_path, gcode_file_path, dat_file_path)
+    # convert_simple_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
+    test_convert_image_to_dat(0,png_file_path, svg_file_path, gcode_file_path, dat_file_path)

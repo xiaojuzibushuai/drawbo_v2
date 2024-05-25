@@ -1,10 +1,15 @@
 import logging
 import os
+import subprocess
 
 import vtracer
 from PIL import Image
 import cv2 as cv
 import numpy as np
+from lxml import etree
+
+from config import inkscape_path
+
 
 # input_path = "./png/bbb.png"
 # output_path = "./svg/bbb.svg"
@@ -132,6 +137,37 @@ def resize_images(file_path, target_resolution):
     # 保存调整后的图片
     canvas.save(file_path)
 
+def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,image_width,image_height, unit='px'):
+    # 解析输入的 SVG 文件
+    tree = etree.parse(input_svg)
+    root = tree.getroot()
+
+    # 设置宽度、高度和单位
+    root.set('width', f'{svg_width}{unit}')
+    root.set('height', f'{svg_height}{unit}')
+
+    # 设置 viewBox
+    viewBox = f'0 0 {svg_width} {svg_height}'
+    root.set('viewBox', viewBox)
+
+    # 找到 image 元素
+    image_element = root.find(".//{http://www.w3.org/2000/svg}image")
+
+    # 修改 image 元素的 width 和 height 属性为 100
+    image_element.set("width", str(image_width))
+    image_element.set("height", str(image_height))
+
+    # 设置 image 元素的新位置
+    # 计算居中位置
+    # 获取 SVG 文件的宽度和高度
+    # 获取 image 元素的宽度和高度
+    new_x = (svg_width - image_width) / 2
+    new_y = (svg_height - image_height) / 2
+    image_element.set("x", str(new_x))
+    image_element.set("y", str(new_y))
+
+    # 保存修改后的 SVG 文件
+    tree.write(output_svg, pretty_print=False, xml_declaration=False, encoding='UTF-8')
 
 # 20240102 xiaojuzi v2 修改 旋转角度
 def cv_png_to_svg(rotate,png_file_path, svg_file_path):
@@ -163,7 +199,16 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
     cv.imwrite(temp_png_file_path, rotated_image)
 
     # 调用函数进行图片分辨率统一
-    resize_images(temp_png_file_path,(360,360))
+    # resize_images(temp_png_file_path,(360,360))
+
+    subprocess.run(
+        [inkscape_path,temp_png_file_path,f"--export-filename={svg_file_path}"], shell=True)
+
+    # # # 设置 SVG 文件的文档属性
+    set_svg_document_properties(svg_file_path, svg_file_path, 250, 353, 100, 100, "mm")
+
+    subprocess.run(
+        [inkscape_path, "--export-type=png", "-o", temp_png_file_path, "--export-background=#FFFFFF", svg_file_path], shell=True)
 
     vtracer.convert_image_to_svg_py(temp_png_file_path, svg_file_path, colormode='binary')
 
@@ -172,14 +217,14 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
 if __name__ == "__main__":
     # png_dir = os.path.join(os.getcwd(),"utils","image_convert","png","hhh.png")
 
-    png_file_path= '2.png'
+    png_file_path = '44.png'
 
-    svg_file_path='2.svg'
+    svg_file_path = '44.svg'
 
-    temp_png_file_path = os.path.dirname(os.path.abspath(png_file_path)) +"_temp.png"
+    # temp_png_file_path = os.path.dirname(os.path.abspath(png_file_path)) +"_temp.png"
 
-    cv_camera_png_to_svg(png_file_path, svg_file_path)
-
+    # cv_camera_png_to_svg(png_file_path, svg_file_path)
+    cv_png_to_svg(0, png_file_path, svg_file_path)
 
     # svg_dir = os.path.join(os.getcwd(),"utils","image_convert","svg","hhh.svg")
     # convert_png_to_svg(input_path, output_path)

@@ -156,7 +156,8 @@ ffmpeg_path = '/var/www/ffmpeg/ffmpeg-6.1/ffmpeg'
 ffprobe_path = '/var/www/ffmpeg/ffmpeg-6.1/ffprobe'
 
 # 线上inkscape_path 地址：/var/www/squashfs-root/Inkscape.AppImage
-inkscape_path = 'E:/Inkscape/inkscape.exe'
+# inkscape_path = 'E:/Inkscape/inkscape.exe'
+inkscape_path = "E:/Inkscape1.1.2/bin/inkscape.exe"
 # inkscape_path = '/var/www/squashfs-root/Inkscape.AppImage'
 
 
