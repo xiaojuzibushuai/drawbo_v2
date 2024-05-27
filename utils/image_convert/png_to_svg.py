@@ -153,6 +153,20 @@ def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,ima
     # 找到 image 元素
     image_element = root.find(".//{http://www.w3.org/2000/svg}image")
 
+    """
+    进行单位换算 设置的为px  px转->mm 为：
+    mm = ( px / DPI ) X 25.4
+    px = ( mm / 25.4 ) X DPI 
+  
+    """
+    new_image_width = int(image_width / 96 * 25.4)
+    new_image_height = int(image_height / 96 * 25.4)
+
+    #方框区域调试此偏移 20240527 xiaojuzi
+    new_x = ((svg_width - new_image_width) / 2 ) - 15
+    new_y = ((svg_height - new_image_height) / 2 ) - 30
+    print(new_x,new_y)
+
     # 修改 image 元素的 width 和 height 属性为 100
     image_element.set("width", str(image_width))
     image_element.set("height", str(image_height))
@@ -161,8 +175,7 @@ def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,ima
     # 计算居中位置
     # 获取 SVG 文件的宽度和高度
     # 获取 image 元素的宽度和高度
-    new_x = (svg_width - image_width) / 2
-    new_y = (svg_height - image_height) / 2
+
     image_element.set("x", str(new_x))
     image_element.set("y", str(new_y))
 
@@ -201,6 +214,7 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
     # 调用函数进行图片分辨率统一
     # resize_images(temp_png_file_path,(360,360))
 
+    #xiaojuzi 20240527 测试终版
     subprocess.run(
         [inkscape_path,temp_png_file_path,f"--export-filename={svg_file_path}"], shell=True)
 
@@ -211,6 +225,8 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
         [inkscape_path, "--export-type=png", "-o", temp_png_file_path, "--export-background=#FFFFFF", svg_file_path], shell=True)
 
     vtracer.convert_image_to_svg_py(temp_png_file_path, svg_file_path, colormode='binary')
+
+
 
 
 

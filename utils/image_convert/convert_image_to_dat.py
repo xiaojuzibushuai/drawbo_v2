@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 import vtracer
+
+from config import inkscape_path
 from utils.image_convert.gcode_to_dat import convert_gcode_to_dat
 from utils.image_convert.png_to_svg import cv_png_to_svg, cv_camera_png_to_svg
 from utils.image_convert.unicorn import convert_svg_to_gcode
@@ -77,13 +79,29 @@ def pre_convert_png_to_svg(rotate,png_file_path, svg_file_path):
     except Exception as e:
         print('面板图片转SVG文件时出现异常:', str(e))
         logging.info('图片转SVG文件时出现异常:', str(e))
+
+
+def temp_convert_svg_to_gcode(svg_file_path, gcode_file_path):
+    try:
+        # 创建Inkscape命令
+        command = f'{inkscape_path} {svg_file_path} --export-type=gcode --export-filename={gcode_file_path} --actions="EditSelectAll;SelectionUnGroup;ExtensionIdPrefix(com.makerbot.unicorn.gcode);FileSave;FileClose"'
+        # 运行Inkscape命令
+        subprocess.run(command, shell=True)
+    except Exception as e:
+        print('SVG文件转gcode文件时出现异常:', str(e))
+        logging.info('SVG文件转gcode文件时出现异常:', str(e))
+
+
 def test_convert_image_to_dat(rotate,png_file_path,svg_file_path,gcode_file_path,dat_file_path):
 
     #1、图片转svg文件
     pre_convert_png_to_svg(rotate,png_file_path,svg_file_path)
 
     #2、svg文件转Gcode文件
-    svg_to_gcode(svg_file_path,gcode_file_path)
+    # svg_to_gcode(svg_file_path,gcode_file_path)
+
+    # svg文件转gode文件 xiaojuzi 20240527 测试终版
+    temp_convert_svg_to_gcode(svg_file_path, gcode_file_path)
 
     #3、Gcode文件转Dat文件
     convert_gcode_to_dat(gcode_file_path,dat_file_path)
@@ -205,10 +223,10 @@ def removeXml(input):
 
 
 if __name__ == "__main__":
-    png_file_path = '44.png'
-    svg_file_path = '44.svg'
-    gcode_file_path = '44.gcode'
-    dat_file_path = '44.dat'
+    png_file_path = 'ceshi1.png'
+    svg_file_path = 'ceshi1.svg'
+    gcode_file_path = 'ceshi1.gcode'
+    dat_file_path = 'ceshi1.dat'
 
 
     # convert_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
