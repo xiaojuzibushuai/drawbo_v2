@@ -83,10 +83,18 @@ def pre_convert_png_to_svg(rotate,png_file_path, svg_file_path):
 
 def temp_convert_svg_to_gcode(svg_file_path, gcode_file_path):
     try:
-        # 创建Inkscape命令
-        command = f'{inkscape_path} {svg_file_path} --export-type=gcode --export-filename={gcode_file_path} --actions="EditSelectAll;SelectionUnGroup;ExtensionIdPrefix(com.makerbot.unicorn.gcode);FileSave;FileClose"'
+        # 创建Inkscape命令 shell=True
+        # command = f'{inkscape_path} {svg_file_path} --export-type=gcode --export-filename={gcode_file_path} --actions="EditSelectAll;SelectionUnGroup;ExtensionIdPrefix(com.makerbot.unicorn.gcode);FileSave;FileClose"'
+        command = [
+            inkscape_path,
+            svg_file_path,
+            "--export-type=gcode",
+            f"--export-filename={gcode_file_path}",
+            '--actions=EditSelectAll;SelectionUnGroup;ExtensionIdPrefix(com.makerbot.unicorn.gcode);FileSave;FileClose'
+        ]
+
         # 运行Inkscape命令
-        subprocess.run(command, shell=True)
+        subprocess.run(command)
     except Exception as e:
         print('SVG文件转gcode文件时出现异常:', str(e))
         logging.info('SVG文件转gcode文件时出现异常:', str(e))
@@ -177,13 +185,13 @@ def bitmap_to_contour_svg(input_bitmap_path: str, output_svg_path: str):
     dump_rings_from_image(img, output_path=output_svg_path)
 
     # 定义命令 0.84 本地用
-    inkscape_path = "E:/Inkscape1.1.2/bin/inkscape.exe"
+    # inkscape_path = "E:/Inkscape1.1.2/bin/inkscape.exe"
     # command = f'{inkscape_path} {output_svg_path} --verb=EditSelectAll --verb=SelectionSimplify --verb=FileSave --verb=FileClose'
     # 线上命令用
     # inkscape_path = 'inkscape'
     command = f'{inkscape_path} {output_svg_path} --batch-process --actions="EditSelectAll;SelectionSimplify;FileSave;FileClose"'
     # 执行命令
-    subprocess.run(command, shell=True)
+    subprocess.run(command)
 
     removeXml(output_svg_path)
 
@@ -223,14 +231,14 @@ def removeXml(input):
 
 
 if __name__ == "__main__":
-    png_file_path = 'ceshi1.png'
-    svg_file_path = 'ceshi1.svg'
-    gcode_file_path = 'ceshi1.gcode'
-    dat_file_path = 'ceshi1.dat'
+    png_file_path = '11.jpg'
+    svg_file_path = '11.svg'
+    gcode_file_path = '11.gcode'
+    dat_file_path = '11.dat'
 
 
     # convert_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
 
     # vtracer.convert_image_to_svg_py(png_file_path, svg_file_path, colormode='binary')
     # convert_simple_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
-    test_convert_image_to_dat(0,png_file_path, svg_file_path, gcode_file_path, dat_file_path)
+    test_convert_image_to_dat(3,png_file_path, svg_file_path, gcode_file_path, dat_file_path)

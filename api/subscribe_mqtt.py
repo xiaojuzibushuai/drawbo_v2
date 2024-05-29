@@ -35,7 +35,7 @@ def initialize():
 def setup_mqtt():
 
     # 订阅主题
-    topic = "keyboard/commit/"
+    topic = "/keyboard/commit/+"
 
     # 初始化MQTT
     client = mqtt.Client()
