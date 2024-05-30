@@ -1,11 +1,13 @@
 import logging
 import os
+import re
 import subprocess
 
 import vtracer
 from PIL import Image
 import cv2 as cv
 import numpy as np
+from PIL.Image import Resampling
 from lxml import etree
 
 from config import inkscape_path
@@ -152,6 +154,7 @@ def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,ima
 
     # 找到 image 元素
     image_element = root.find(".//{http://www.w3.org/2000/svg}image")
+    # print(image_element)
 
     """
     进行单位换算 设置的为px  px转->mm 为：
@@ -161,6 +164,7 @@ def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,ima
     """
     new_image_width = int(image_width / 96 * 25.4)
     new_image_height = int(image_height / 96 * 25.4)
+    # print(new_image_width,new_image_height)
 
     #方框区域调试此偏移 20240527 xiaojuzi
     new_x = ((svg_width - new_image_width) / 2 ) - 15
@@ -181,6 +185,95 @@ def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,ima
 
     # 保存修改后的 SVG 文件
     tree.write(output_svg, pretty_print=False, xml_declaration=False, encoding='UTF-8')
+
+
+#xiaojuzi 重置图像大小且旋转转为灰度 20240529
+def resize_rotate_and_convert_to_grayscale(input_image_path, resized_image_path, max_size=512,rotation_angle=0):
+    # 打开图像
+    image = Image.open(input_image_path)
+
+    # 获取原始图像尺寸
+    # original_width, original_height = image.size
+
+    # 计算缩放比例，保持宽高比
+    # if original_width > original_height:
+    #     new_width = max_size
+    #     new_height = int((new_width / original_width) * original_height)
+    # else:
+    #     new_height = max_size
+    #     new_width = int((new_height / original_height) * original_width)
+
+
+    # 旋转图像
+    if rotation_angle != 0:
+        image = image.rotate(rotation_angle, expand=True)
+
+    # 调整图像大小
+    # image = image.resize((new_width, new_height), Resampling.LANCZOS)
+
+    # 转换为灰度图像
+    grayscale_image = image.convert('L')
+
+    # 保存为临时文件
+    grayscale_image.save(resized_image_path)
+    return resized_image_path
+
+#xiaojuzi 将位图转为svg potrace算法 20240529
+def convert_bitmap_to_svg(input_image_path, output_svg_path, rotation,max_size=512):
+    # 定义中间文件路径
+    intermediate_pnm_path = os.path.abspath(input_image_path.split('.')[0]) + "_temp.pnm"
+
+    # 调整大小并转换为灰度图
+    resized_image_path = os.path.abspath(input_image_path.split('.')[0]) + "_resized_temp.png"
+
+    if rotation == 1:
+        rotation_angle = 90
+    elif rotation == 2:
+        rotation_angle = 180
+    elif rotation == 3:
+        rotation_angle = 270
+    else:
+        rotation_angle = 0
+
+    # 调整大小并转换为灰度图
+    resize_rotate_and_convert_to_grayscale(input_image_path, resized_image_path, max_size,rotation_angle)
+
+    # # 打开图像
+    # image = Image.open(resized_image_path)
+    #
+    # # 获取图像尺寸
+    # resized_width, resized_height = image.size
+    # print(resized_width,resized_height)
+
+    # 使用 ImageMagick 将灰度图像转换为 PNM 格式
+    command = f"magick {resized_image_path} {intermediate_pnm_path}"
+    subprocess.run(command, check=True)
+    '''
+    --width 150pt --height 240pt 设置图片大小 有 pt cm im
+    --tight：删除输入图像周围的空白。
+    --alphamax 1：设置角阈值参数，以保留更多细节。 默认
+    --opttolerance 0.2：设置曲线优化公差。 默认
+    --scale 1.0 - 设置缩放因子为 1.0。
+    --group：将相关路径分组在一起，以便更好的组织 SVG 内容。
+    -M 和 -T：设置边距，以确保输出的图像没有被裁剪。
+     -A，--rotate angle          - 逆时针旋转角度
+     -M，--margin dim            - 边距
+     -L，--leftmargin dim        - 左边距
+     -R，--rightmargin dim       - 右边距
+     -T，--topmargin dim         - 上边距
+     -B，--bottommargin dim      - 下边距
+    --color 和 --fillcolor：设置前景色和填充色，以确保输出的 SVG 看起来更逼真。
+    '''
+    command1 = f"potrace {intermediate_pnm_path} -b svg -o {output_svg_path} --pagesize 250mmx353mm --tight -a 1 -O 0.2 --group -M 50mm -L 50mm -R 50mm -T 50mm -B 50mm --color #000000 "
+    # 使用 Potrace 将 PNM 格式转换为 SVG 格式
+    subprocess.run(command1, check=True)
+
+    # 删除中间文件
+    os.remove(intermediate_pnm_path)
+    os.remove(resized_image_path)
+
+
+
 
 # 20240102 xiaojuzi v2 修改 旋转角度
 def cv_png_to_svg(rotate,png_file_path, svg_file_path):
@@ -212,7 +305,7 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
     cv.imwrite(temp_png_file_path, rotated_image)
 
     # 调用函数进行图片分辨率统一
-    # resize_images(temp_png_file_path,(360,360))
+    # resize_images(temp_png_file_path,(720,720))
 
     #xiaojuzi 20240527 测试终版 shell=True
     subprocess.run(
@@ -233,14 +326,15 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
 if __name__ == "__main__":
     # png_dir = os.path.join(os.getcwd(),"utils","image_convert","png","hhh.png")
 
-    png_file_path = '44.png'
+    png_file_path = 'ceshi3.jpg'
 
-    svg_file_path = '44.svg'
+    svg_file_path = 'ceshi3.svg'
 
+    convert_bitmap_to_svg(png_file_path,svg_file_path,0)
     # temp_png_file_path = os.path.dirname(os.path.abspath(png_file_path)) +"_temp.png"
 
     # cv_camera_png_to_svg(png_file_path, svg_file_path)
-    cv_png_to_svg(0, png_file_path, svg_file_path)
+    # cv_png_to_svg(0, png_file_path, svg_file_path)
 
     # svg_dir = os.path.join(os.getcwd(),"utils","image_convert","svg","hhh.svg")
     # convert_png_to_svg(input_path, output_path)

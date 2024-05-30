@@ -8,7 +8,7 @@ import vtracer
 
 from config import inkscape_path
 from utils.image_convert.gcode_to_dat import convert_gcode_to_dat
-from utils.image_convert.png_to_svg import cv_png_to_svg, cv_camera_png_to_svg
+from utils.image_convert.png_to_svg import cv_png_to_svg, cv_camera_png_to_svg, convert_bitmap_to_svg
 from utils.image_convert.unicorn import convert_svg_to_gcode
 
 import xml.etree.ElementTree as ET
@@ -103,7 +103,10 @@ def temp_convert_svg_to_gcode(svg_file_path, gcode_file_path):
 def test_convert_image_to_dat(rotate,png_file_path,svg_file_path,gcode_file_path,dat_file_path):
 
     #1、图片转svg文件
-    pre_convert_png_to_svg(rotate,png_file_path,svg_file_path)
+    # pre_convert_png_to_svg(rotate,png_file_path,svg_file_path)
+
+    # 位图转svg文件 xiaojuzi 20240529 测试终版 potrace算法
+    convert_bitmap_to_svg(png_file_path,svg_file_path,rotate,256)
 
     #2、svg文件转Gcode文件
     # svg_to_gcode(svg_file_path,gcode_file_path)
@@ -231,14 +234,14 @@ def removeXml(input):
 
 
 if __name__ == "__main__":
-    png_file_path = '11.jpg'
-    svg_file_path = '11.svg'
-    gcode_file_path = '11.gcode'
-    dat_file_path = '11.dat'
+    png_file_path = 'ceshi3.jpg'
+    svg_file_path = 'ceshi3.svg'
+    gcode_file_path = 'ceshi3.gcode'
+    dat_file_path = 'ceshi3.dat'
 
 
     # convert_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
 
     # vtracer.convert_image_to_svg_py(png_file_path, svg_file_path, colormode='binary')
     # convert_simple_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
-    test_convert_image_to_dat(3,png_file_path, svg_file_path, gcode_file_path, dat_file_path)
+    test_convert_image_to_dat(1,png_file_path, svg_file_path, gcode_file_path, dat_file_path)
