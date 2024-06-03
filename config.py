@@ -135,10 +135,10 @@ JWT_SECRET_KEY = 'FrZrkpM8Xwect1f2E1KfAB2bfEA9qYcE'
 JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=8)  #登录token过期时间
 JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=15)  #刷新token过期时间
 
-#Redis
-# REDIS_HOST = '101.201.75.83'
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
+#Redis  k8集群 redis：121.89.199.156:31716
+# REDIS_HOST = '101.201.75.83:6379'
+REDIS_HOST = '121.89.199.156'
+REDIS_PORT = 31716
 # REDIS_PASSWORD = 'xiaojuziv2'
 REDIS_DB = 0
 
@@ -168,10 +168,10 @@ MQ_NAME = 'drawbo'
 MQ_PASSWORD = 'AsKdRaWbo2022'
 MQ_QUEUE_NAME = 'drawbo'
 
-# mqtt config 正式服务器
-MQTT_HOST = MQ_HOST
+# mqtt config 正式服务器 线上k8：121.89.199.156:31789 线上单机服务器：101.201.75.83:1883
+MQTT_HOST = '121.89.199.156'
 # MQTT_HOST = '172.16.0.230'
-MQTT_PORT = 1883
+MQTT_PORT = 31789
 MQTT_USERNAME = 'admin'
 # MQTT_PASSWORD = 'public'
 MQTT_PASSWORD = 'AsKdRaWbo20171117'

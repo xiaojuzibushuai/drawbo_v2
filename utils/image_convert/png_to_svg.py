@@ -326,9 +326,9 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
 if __name__ == "__main__":
     # png_dir = os.path.join(os.getcwd(),"utils","image_convert","png","hhh.png")
 
-    png_file_path = 'ceshi3.jpg'
+    png_file_path = '111.jpg'
 
-    svg_file_path = 'ceshi3.svg'
+    svg_file_path = '111.svg'
 
     convert_bitmap_to_svg(png_file_path,svg_file_path,0)
     # temp_png_file_path = os.path.dirname(os.path.abspath(png_file_path)) +"_temp.png"

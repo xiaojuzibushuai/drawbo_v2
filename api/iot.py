@@ -153,9 +153,41 @@ def iot_topic():
                 db.session.add(user_device)
                 db.session.commit()
 
-            logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
-        else:
-            logging.info(user)
+                # jwt_redis_blocklist.set(f"user_bind_device:{custom}",f"bind-{deviceid}-success",ex=timedelta(seconds=30))
+                temp = {
+                    'deviceId' : deviceid,
+                    'bindResult' : 'success',
+                    'bindUser' : None
+                }
+                jwt_redis_blocklist.sadd(f"user_bind_device:{custom}",json.dumps(temp))
+                jwt_redis_blocklist.expire(f"user_bind_device:{custom}", timedelta(minutes=1))
+
+                logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
+
+            else:
+                #判断现在绑定的机器是否用户已经绑定过 若绑定过只进行联网
+                if not (device.userid == custom):
+                    bindUser = User.query.filter_by(openid=device.userid).first()
+                    result = bindUser.openid
+                    if bindUser.register_phone:
+                        result = bindUser.register_phone
+                    # jwt_redis_blocklist.hset(f"user_bind_device:{bindUser.openid}",deviceid,result)
+                    # jwt_redis_blocklist.set(f"user_bind_device:{custom}",f"bind-{deviceid}-fail-{result}",ex=timedelta(seconds=30))
+
+                    temp = {
+                        'deviceId' : deviceid,
+                        'bindResult' : 'fail',
+                        'bindUser' : result
+                    }
+
+                    jwt_redis_blocklist.sadd(f"user_bind_device:{custom}",json.dumps(temp))
+                    jwt_redis_blocklist.expire(f"user_bind_device:{custom}", timedelta(minutes=1))
+
+                    logging.info('user(%s) bind device(%s) fail' % (custom, deviceid))
+                # return jsonify(iot_msg_manager(SUCCESS, f'该设备已经被手机号：{result}，的用户绑定过!'))
+
+        # else:
+        #     logging.info(user)
 
         #新逻辑将topic放到缓存 20240430 xiaojuzi
         jwt_redis_blocklist.hset(f"iot_notify:{deviceid}", "topic", payload['topic'])

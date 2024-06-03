@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 
 from WXBizDataCrypt import WXBizDataCrypt
@@ -31,11 +32,18 @@ def main():
     print(new_data)
 
 def test1():
-   data = list_oss_file()
+   # data = list_oss_file()
    
    # jwt_redis_blocklist.hset("iot_notify","123", datetime.now().timestamp)
    # jwt_redis_blocklist.expire("iot_notify",timedelta(days=7))
-   
+   data = {'{"deviceId": "80023FD00047", "bindResult": "fail", "bindUser": "18707281085"}',
+           '{"deviceId": "80023FD00047", "bindResult": "fail", "bindUser": "18707281086"}'}
+   data_list = []
+   for d in data:
+       print(json.loads(d))
+       data_list.append(json.loads(d))
+   print(data_list)
+   # print(json.dumps(data))
 
 
 

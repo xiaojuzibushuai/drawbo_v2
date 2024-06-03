@@ -3336,27 +3336,34 @@ def check_dev_bind():
     # if not user:
     #     return jsonify(ret_data(PARAMS_ERROR))
 
-    devices = User_Device.query.filter_by(userid=openid).all()
+    #devices = User_Device.query.filter_by(userid=openid).all()
 
-    if not devices:
-        return jsonify(ret_data(UNBIND_DEVICE))
+    #if not devices:
+        #return jsonify(ret_data(UNBIND_DEVICE))
 
     data_list = []
 
-    for device in devices:
+    data = jwt_redis_blocklist.smembers(f"user_bind_device:{openid}")
+    logging.info(data)
+    if data:
+        for d in data:
+            data_list.append(json.loads(d))
+        jwt_redis_blocklist.delete(f"user_bind_device:{openid}")
 
-        device1 = Device.query.filter_by(deviceid=device.deviceid).first()
-
-        data = {'dev_bind': False,
-                'deviceid': device1.deviceid
-                }
-
-        if device1.status:
-            data = {'dev_bind': True,
-                    'deviceid': device1.deviceid
-                    }
-
-        data_list.append(data)
+    # for device in devices:
+    #
+    #     device1 = Device.query.filter_by(deviceid=device.deviceid).first()
+    #
+    #     data = {'dev_bind': False,
+    #             'deviceid': device1.deviceid
+    #             }
+    #
+    #     if device1.status:
+    #         data = {'dev_bind': True,
+    #                 'deviceid': device1.deviceid
+    #                 }
+    #
+    #     data_list.append(data)
 
     return jsonify(ret_data(SUCCESS, data=data_list))
 

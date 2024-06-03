@@ -1343,6 +1343,7 @@ def videoAutoPushDatToDevice():
     # current_user = get_jwt_identity()
     # if not current_user:
     #     return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    enter_time = datetime.now().timestamp()
 
     url = request.form.get('url', None)
     #20240204 xiaojuzi v2  修改
@@ -1424,6 +1425,9 @@ def videoAutoPushDatToDevice():
     send_result['success_send'] = success_send
     send_result['errc_send'] = errc_send
     send_result['send_devices_count'] = len(device_list)
+
+
+    logging.info('push_dat发送接口耗时：%s 毫秒', (datetime.now().timestamp() - enter_time))
 
     return jsonify(ret_data(SUCCESS, data=send_result))
 
