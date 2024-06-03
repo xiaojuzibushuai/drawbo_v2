@@ -139,10 +139,10 @@ def iot_topic():
         user = User.query.filter_by(openid=custom).first()
         if user:
             # 新增用户设备信息表记录逻辑修改 xiaojuzi 20231214 v2 一个画小宇设备只允许一个人绑定 其他人绑定该设备只能分享添加
-            device = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
+            userDevice = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
             # 待完善 20231218
             # device = User_Device.query.filter_by(userid=custom, deviceid=deviceid).first()
-            if not device:
+            if not userDevice:
 
                 user_device = User_Device(
                     deviceid=deviceid,
@@ -156,6 +156,8 @@ def iot_topic():
                 # jwt_redis_blocklist.set(f"user_bind_device:{custom}",f"bind-{deviceid}-success",ex=timedelta(seconds=30))
                 temp = {
                     'deviceId' : deviceid,
+                    'deviceName' : device.devicename,
+                    'bindTime' : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     'bindResult' : 'success',
                     'bindUser' : None
                 }
@@ -166,8 +168,8 @@ def iot_topic():
 
             else:
                 #判断现在绑定的机器是否用户已经绑定过 若绑定过只进行联网
-                if not (device.userid == custom):
-                    bindUser = User.query.filter_by(openid=device.userid).first()
+                if not (userDevice.userid == custom):
+                    bindUser = User.query.filter_by(openid=userDevice.userid).first()
                     result = bindUser.openid
                     if bindUser.register_phone:
                         result = bindUser.register_phone
@@ -176,6 +178,8 @@ def iot_topic():
 
                     temp = {
                         'deviceId' : deviceid,
+                        'deviceName' : device.devicename,
+                        'bindTime' : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         'bindResult' : 'fail',
                         'bindUser' : result
                     }
