@@ -54,10 +54,12 @@ else:
     # 测试环境
     HOST = 'http://172.16.0.230:5000'
 
-    HOSTNAME = 'LOCALHOST'
+    # HOSTNAME = 'LOCALHOST'
+    HOSTNAME = '101.201.75.83:3306'
     DATABASE = 'drawbo_v2'
     USERNAME = 'root'
-    PASSWORD = '123456'
+    # PASSWORD = '123456'
+    PASSWORD = 'askroot'
 
     DEBUG = True
 

@@ -8,6 +8,7 @@ import logging
 
 from api.auth import jwt_redis_blocklist
 from config import HOST, API_KEY
+from models.DeviceCount import DeviceCount
 from models.course import DeviceCourse, Course, Category, DeviceCategory
 from models.device import Device, QRCodeSerial
 from models.user import User, FaceInfo
@@ -590,6 +591,14 @@ def init_course(device_id: int):
     :param device_id: 设备id
     :return: None
     """
+    dc = DeviceCount.query.filter_by(device_id=device_id).first()
+    if not dc:
+        device_count = DeviceCount(
+            device_id=device_id,
+            use_count=0
+        )
+        db.session.add(device_count)
+        # db.session.commit()
     course_list = Course.query.all()
     for course in course_list:
         dc = DeviceCourse.query.filter_by(device_id=device_id, course_id=course.id).first()
@@ -599,14 +608,16 @@ def init_course(device_id: int):
                 device_id=device_id
             )
             db.session.add(device_course)
-            db.session.commit()
-    category_list = Category.query.all()
-    for category in category_list:
-        dc = DeviceCategory.query.filter_by(device_id=device_id, category_id=category.id).first()
-        if not dc:
-            device_category = DeviceCategory(
-                category_id=category.id,
-                device_id=device_id
-            )
-            db.session.add(device_category)
-            db.session.commit()
+            # db.session.commit()
+    # category_list = Category.query.all()
+    # for category in category_list:
+    #     dc = DeviceCategory.query.filter_by(device_id=device_id, category_id=category.id).first()
+    #     if not dc:
+    #         device_category = DeviceCategory(
+    #             category_id=category.id,
+    #             device_id=device_id
+    #         )
+    #         db.session.add(device_category)
+            # db.session.commit()
+    #统一提交
+    db.session.commit()

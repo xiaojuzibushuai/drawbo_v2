@@ -152,8 +152,8 @@ dictConfig({
             'level': 'INFO',
             'formatter': 'default',
             'filename': log_file_str,
-            'maxBytes': 1024*1024*20,  # 20 MB
-            'backupCount': 50, #保留个数
+            'maxBytes': 1024*1024*200,  # 20 MB
+            'backupCount': 100, #保留个数
             'encoding': 'utf8'
         }
     },

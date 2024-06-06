@@ -27,6 +27,8 @@ from api.mqtt import mqtt_push_wakeword_data, mqttPushAnswerToKeyBoard, get_mqtt
 
 from config import HOST, APPSECRET, APPID, SignName, LoginTemplateCode, JWT_ACCESS_TOKEN_EXPIRES, SMS_EXPIRE_TIME, \
     DEVICE_EXPIRE_TIME, inkscape_path
+from models.DeviceCount import DeviceCount
+from models.FaceDevice import FaceDevice
 from models.course_question import CourseQuestion
 from models.device import Device
 from models.logout_user import LogoutUser
@@ -87,7 +89,8 @@ def index():
         else:
             position_ad[ad.position] = [dict_fill_url(model_to_dict(ad), ['image'])]
     data = {
-        'recommend_course': dict_fill_url(model_to_dict(recommend), ['img_files']) if recommend else {},
+        # 'recommend_course': dict_fill_url(model_to_dict(recommend), ['img_files']) if recommend else {},
+        'recommend_course': model_to_dict(recommend) if recommend else {},
         'ad': position_ad
     }
     return jsonify(ret_data(SUCCESS, data=data))
@@ -2691,6 +2694,12 @@ def device_unbind():
 
     db.session.commit()
 
+    #删除绑定删除这个在线缓存 20240605 xiaojuzi
+    data = jwt_redis_blocklist.hgetall(f"iot_notify:{deviceid}")
+    if data:
+        jwt_redis_blocklist.delete(f"iot_notify:{deviceid}")
+
+
     return jsonify(ret_data(SUCCESS,data='操作成功'))
 
 
@@ -2754,17 +2763,7 @@ def category():
 
     return jsonify(ret_data(SUCCESS, data=category_list))
 
-    #下述为老逻辑
-    # openid = request.form.get('openid', None)
-    # 20240202 xiaojuzi v2 去掉openid的依赖性
-#     current_user = get_jwt_identity()
-#     if not current_user:
-#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
-#     openid = current_user['openid']
-#     #只要绑定设备默认所有设备的分类如果开启都可共享
-#     # 获取用户绑定选中且在线的设备
-#     device_list = getDeviceByOpenid(openid)
-#
+#下述为老逻辑SQL
 # #     SELECT
 # #     category.id,
 # #     category.title,
@@ -2788,84 +2787,6 @@ def category():
 # # )
 # # GROUP BY
 # # category.id
-#
-#     if device_list:
-#
-#         # 过滤条件
-#         query_deviceid = db.session.query(User_Device.deviceid).filter(User_Device.userid == openid)
-#
-#         query_filter=[ Category.index_cate == 1]
-#
-#         query_filter.append(Device.deviceid.in_(query_deviceid))
-#
-#         course_query = (db.session.query(
-#                 Category.id,
-#                 Category.title,
-#                 Category.detail,
-#                 Category.save_path,
-#                 Category.index_cate,
-#                 Category.priority,
-#                 DeviceCategory.lock,
-#                 Course.id.label('free_course_id'),
-#             ).join(
-#                 DeviceCategory,
-#                 DeviceCategory.category_id == Category.id
-#             ).outerjoin(
-#                 Course,
-#                 Course.category_id == Category.id
-#             ).filter(*query_filter).group_by(Category.id,DeviceCategory.lock).all())
-#
-#         # 进行相同id判断为true的留下
-#         ids = set()
-#         filtered_data = []
-#
-#         #遍历获取数据id
-#         for item in course_query:
-#             ids.add(item[0])
-#
-#         # 遍历只要分类开放的id
-#         for item in course_query:
-#             if item[0] in ids and not item[6]:
-#                 filtered_data.append(item)
-#                 ids.remove(item[0])
-#
-#         if ids:
-#             #将未开放的id 加入
-#             for item in course_query:
-#                 if item[0] in ids:
-#                     filtered_data.append(item)
-#                     ids.remove(item[0])
-#                     if not ids:
-#                         break
-#
-#         #返回列表
-#         category_list = model_to_dict(filtered_data)
-#
-#         # category_list = dict_fill_url(category_list, ['save_path'])
-#
-#     else:
-#         # 未绑定设备，也展示类别，但全部锁住
-#         cate_objs = db.session.query(
-#             Category.id,
-#             Category.title,
-#             Category.detail,
-#             Category.save_path,
-#             Category.index_cate,
-#             Category.priority,
-#             Course.id.label('free_course_id'),
-#         ).outerjoin(
-#             Course, Course.category_id == Category.id
-#         ).filter(Category.index_cate == 1).group_by(Category.id).all()
-#
-#         category_list = model_to_dict(cate_objs)
-#         # category_list = dict_fill_url(category_list, ['save_path'])
-#
-#         for cate in category_list:
-#             #全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 cate['lock'] = True  TODO
-#             cate['lock'] = True
-#             # cate['lock'] = False
-#
-#     return jsonify(ret_data(SUCCESS, data=category_list))
 
     # 获取规整嵌套列表里面去外层列表 方式一
     # new_category_all_list = [category_list for innerlist in category_all_list for category_list in innerlist]
@@ -2899,19 +2820,9 @@ def course():
     if course_id == 'null':
         course_id = None
 
-    # 获取用户绑定选中且在线的设备
-    device_list = getDeviceByOpenid(openid)
-
-    if not device_list:
-        return jsonify(ret_data(DEVICE_NOT_FIND))
-
-    #xiaojuzi
-    # 创建查询参数
-    # 课程查询字段
-    #累加设备所查询到的课程使用次数
     query_params = [Course.id, Course.title, Course.detail, Course.category_id, Course.img_files,
-                    Course.priority,Course.play_time, Course.course_class, Course.volume,
-                    cast(func.sum(DeviceCourse.use_count),Integer).label('use_count'),Device.volume.label('sound_volume')]
+                    Course.priority, Course.play_time, Course.course_class, Course.volume]
+
     # 查询条件
     query_filter = [Course.index_show == 1]
 
@@ -2926,6 +2837,55 @@ def course():
 
     if course_id:
         query_filter.append(Course.id == int(course_id))
+
+    # 执行sql
+    course_query = db.session.query(*query_params).filter(*query_filter).group_by(Course.title)
+
+    course_objs = course_query.all()
+
+    if course_objs:
+        course_list = model_to_dict(course_query)
+        # course_list = dict_fill_url(course_list, ['img_files'])
+
+        for data in course_list:
+            data['use_count'] = 999
+
+        # 未绑定设置默认音量是0
+        # if not device_id:
+        #      course_list = dict_add_default_data(course_list, sound_volume=0)
+
+    else:
+        course_list = []
+
+    return jsonify(ret_data(SUCCESS, data=course_list))
+
+    # 获取用户绑定选中且在线的设备   下述为老逻辑暂时保留 206040605 xiaojuzi
+    # device_list = getDeviceByOpenid(openid)
+    #
+    # if not device_list:
+    #     return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    #xiaojuzi
+    # 创建查询参数
+    # 课程查询字段
+    #累加设备所查询到的课程使用次数
+    # query_params = [Course.id, Course.title, Course.detail, Course.category_id, Course.img_files,
+    #                 Course.priority,Course.play_time, Course.course_class, Course.volume,
+    #                 cast(func.sum(DeviceCourse.use_count),Integer).label('use_count'),Device.volume.label('sound_volume')]
+    # # 查询条件
+    # query_filter = [Course.index_show == 1]
+    #
+    # if category_id:
+    #     query_filter.append(Course.category_id == int(category_id))
+    #
+    # if course_class:
+    #     query_filter.append(Course.course_class == course_class)
+    #
+    # if volume:
+    #     query_filter.append(Course.volume == volume)
+    #
+    # if course_id:
+    #     query_filter.append(Course.id == int(course_id))
 
 #     # 创建查询参数
 #     query_params = [Course.title, func.sum(DeviceCourse.use_count)]
@@ -2951,35 +2911,70 @@ def course():
 #         course_list = []
 
     # 过滤条件
-    query_deviceid = db.session.query(User_Device.deviceid).filter(User_Device.userid == openid)
+    # query_deviceid = db.session.query(User_Device.deviceid).filter(User_Device.userid == openid)
+    #
+    # query_filter.append(Device.deviceid.in_(query_deviceid))
 
-    query_filter.append(Device.deviceid.in_(query_deviceid))
+    # #执行sql
+    # course_query = db.session.query(*query_params).join(
+    #     DeviceCourse, DeviceCourse.course_id == Course.id
+    # ).join(
+    #         Device, Device.id == DeviceCourse.device_id
+    # ).filter(*query_filter).group_by(Course.title)
+    #
+    # course_objs = course_query.all()
+    #
+    # if course_objs:
+    #     course_list = model_to_dict(course_query)
+    #     # course_list = dict_fill_url(course_list, ['img_files'])
+    #
+    #     # 全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 没有这个循环
+    #     # update by xiaojuzi 20240605 不在有设备课程次数判断 更改逻辑
+    #     for data in course_list:
+    #         data['use_count'] = 999
+    #
+    #     # 未绑定设置默认音量是0
+    #     # if not device_id:
+    #     #      course_list = dict_add_default_data(course_list, sound_volume=0)
+    #
+    # else:
+    #     course_list = []
+    #
+    # return jsonify(ret_data(SUCCESS, data=course_list))
 
-    #执行sql
-    course_query = db.session.query(*query_params).join(
-        DeviceCourse, DeviceCourse.course_id == Course.id
-    ).join(
-            Device, Device.id == DeviceCourse.device_id
-    ).filter(*query_filter).group_by(Course.title)
 
-    course_objs = course_query.all()
+@miniprogram_api.route('/getUserDeviceList', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+# 人脸信息获取用户设备列表 20240605 xiaojuzi
+def getUserDeviceList():
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    openid = current_user['openid']
 
-    if course_objs:
-        course_list = model_to_dict(course_query)
-        # course_list = dict_fill_url(course_list, ['img_files'])
+    device_list = getDeviceByOpenid(openid)
 
-        # 全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 没有这个循环 TODO
-        # for data in course_list:
-        #     data['use_count'] = 999
+    if not device_list:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
 
-        # 未绑定设置默认音量是0
-        # if not device_id:
-        #      course_list = dict_add_default_data(course_list, sound_volume=0)
+    data = []
+    for d in device_list:
+        dc = DeviceCount.query.filter_by(device_id=d.id).first()
+        num = db.session.query(func.count(FaceDevice.id)).filter(FaceDevice.device_id == d.id).scalar()
 
-    else:
-        course_list = []
+        data.append({
+            'id': d.id,
+            'deviceSumUseCount': dc.use_count,
+            'deviceFaceCount': num,
+            'deviceId': d.deviceid,
+            'deviceName': d.devicename,
+            'wakeword': d.wakeword,
+            'isMaster': d.is_master
+        })
 
-    return jsonify(ret_data(SUCCESS, data=course_list))
+    return jsonify(ret_data(SUCCESS, data=data))
+
 
 
 @miniprogram_api.route('/face_info', methods=['POST'])
@@ -2999,6 +2994,7 @@ def face_info():
     openid = current_user['openid']
     face_id = request.form.get('face_id', None)
     update_data = request.form.get('update_data', None)
+
     # face_id,true;face_id,false;face_id,delete
     if update_data:
         try:
@@ -3021,62 +3017,92 @@ def face_info():
             logging.info(e)
             return jsonify(ret_data(SYSTEM_ERROR))
 
-    # 查询该设备学员信息
-    #只要绑定设备默认所有设备的人脸都可共享
+
     face_all_list = []
 
-    device_list = getDeviceByOpenid(openid)
+    # 查询该设备学员信息 20240605 xiaojuzi 新逻辑
 
-    if not device_list:
-        return jsonify(ret_data(DEVICE_NOT_FIND))
-
-    for device in device_list:
-
-        device_id = device.id
-
-        if face_id:
-            #根据 face_id 查询对应的人脸信息 xiaojujzi
-            face = FaceInfo.query.get(int(face_id))
-
-            data = []
-            if face:
-
-                data = model_to_dict(face)
-                data = dict_fill_url(data, ['head'])
-                data = dict_drop_field(data, ['img_base64', 'feature'])
-
-                face_all_list.append(data)
-
-            # else:
-            #     return jsonify(ret_data(PARAMS_ERROR))
-
-        else:
-
-            #根据设备 ID 查询该设备关联的所有人脸信息 xiaojuzi
-            face = FaceInfo.query.filter_by(device=device_id).all()
-
-            data = []
+    if face_id:
+        # 根据 face_id 查询对应的人脸信息 xiaojujzi
+        face = FaceInfo.query.get(int(face_id))
+        if face:
+            data = model_to_dict(face)
+            data = dict_fill_url(data, ['head'])
+            data = dict_drop_field(data, ['img_base64', 'feature'])
+            face_all_list.append(data)
+    else:
+        device_id = request.form.get('id', None)
+        # 根据设备 ID 查询该设备关联的所有人脸信息 xiaojuzi
+        fd = FaceDevice.query.filter_by(device_id=device_id).all()
+        # face = FaceInfo.query.filter_by(device=device_id).all()
+        if not fd:
+            return jsonify(ret_data(SUCCESS, data=face_all_list))
+        for f in fd:
+            face = FaceInfo.query.filter_by(id=f.face_id).first()
             if face:
                 data = model_to_dict(face)
                 data = dict_fill_url(data, ['head'])
                 data = dict_drop_field(data, ['img_base64', 'feature'])
-
+                data['deviceUseCount'] = f.use_count
                 face_all_list.append(data)
+
+    return jsonify(ret_data(SUCCESS, data=face_all_list))
+
+    #只要绑定设备默认所有设备的人脸都可共享  20240605 之前逻辑版本 待删
+    # face_all_list = []
+    #
+    # device_list = getDeviceByOpenid(openid)
+    #
+    # if not device_list:
+    #     return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    # for device in device_list:
+    #
+    #     device_id = device.id
+    #
+    #     if face_id:
+    #         #根据 face_id 查询对应的人脸信息 xiaojujzi
+    #         face = FaceInfo.query.get(int(face_id))
+    #
+    #         data = []
+    #         if face:
+    #
+    #             data = model_to_dict(face)
+    #             data = dict_fill_url(data, ['head'])
+    #             data = dict_drop_field(data, ['img_base64', 'feature'])
+    #
+    #             face_all_list.append(data)
+    #
+    #         # else:
+    #         #     return jsonify(ret_data(PARAMS_ERROR))
+    #
+    #     else:
+    #
+    #         #根据设备 ID 查询该设备关联的所有人脸信息 xiaojuzi
+    #         face = FaceInfo.query.filter_by(device=device_id).all()
+    #
+    #         data = []
+    #         if face:
+    #             data = model_to_dict(face)
+    #             data = dict_fill_url(data, ['head'])
+    #             data = dict_drop_field(data, ['img_base64', 'feature'])
+    #
+    #             face_all_list.append(data)
 
     #去掉嵌套列表 xiaojuzi
-    new_face_all_list = []
-
-    for innerlist in face_all_list:
-        if is_nested_list(innerlist):
-            for face_list in innerlist:
-                new_face_all_list.append(face_list)
-        else:
-            new_face_all_list.append(innerlist)
+    # new_face_all_list = []
+    #
+    # for innerlist in face_all_list:
+    #     if is_nested_list(innerlist):
+    #         for face_list in innerlist:
+    #             new_face_all_list.append(face_list)
+    #     else:
+    #         new_face_all_list.append(innerlist)
 
     # # 去重 用集合推导式 先转换为tuple 将tuple放入set集合 在转换为字典 不用去重 不同设备的人脸信息不一样
     # unique_new_face_all_list = [dict(t) for t in {tuple(sorted(d.items())) for d in new_face_all_list}]
 
-    return jsonify(ret_data(SUCCESS, data=new_face_all_list))
+    # return jsonify(ret_data(SUCCESS, data=new_face_all_list))
 
 
 @miniprogram_api.route('/create_face', methods=['POST'])
@@ -3098,60 +3124,75 @@ def create_face():
     nickname = request.form.get('nickname', '')
     sex = request.form.get('sex', 0)
     sex = 0 if sex in ['男', '0', 0] else 1
+    deviceid = request.form.get('deviceid', None)
 
-    # 默认在一个机器上创建人脸 只上传一个人脸
-    device_list = getDeviceByOpenid(openid)
-
-    if not device_list:
+    #20240604 update by xiaojuzi 选中要上传的机器号
+    device = Device.query.filter_by(deviceid=deviceid).first()
+    if not device:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
-    for device in device_list:
+    #判断是否在线 在线则上传
+    notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
+    if not notify_time:
+        notify_time = 0
 
-        device_id = device.id
+    if not (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
+        return jsonify(ret_data(DEVICE_NOT_FIND))
 
-        # 上传图片
-        f = request.files.get('upload')
-        if not f:
-            return jsonify(ret_data(PARAMS_ERROR))
+    # 默认在一个机器上创建人脸 只上传一个人脸
+    # device_list = getDeviceByOpenid(openid)
 
-        extension = f.filename.split('.')[1].lower()
-        new_filename = str(int(time.time())) + '.' + extension
+    # if not device_list:
+    #     return jsonify(ret_data(DEVICE_NOT_FIND))
 
-        if extension not in app.config['ALLOWED_EXTENSIONS']:
-            return jsonify(ret_data(PARAMS_ERROR, data='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!'))
-        image_path = os.path.join(os.path.abspath('.'), 'static', 'face', new_filename)
+    # for device in device_list:
 
-        f.save(image_path)
-        # 检验图片是否有人脸
-        cut_face_base64 = cut_face_image(image_path, device.d_type)
+    device_id = device.id
 
-        if not cut_face_base64:
-            return jsonify(ret_data(FACE_NOT_FIND))
+    # 上传图片
+    f = request.files.get('upload')
+    if not f:
+        return jsonify(ret_data(PARAMS_ERROR))
 
-        user_id = create_noncestr()
+    extension = f.filename.split('.')[1].lower()
+    new_filename = str(int(time.time())) + '.' + extension
 
-        face_obj = FaceInfo(
-            user_id=user_id,
-            nickname=nickname,
-            sex=sex,
-            device=device_id,
-            head='face/' + new_filename,
-            img_base64=cut_face_base64
-        )
+    if extension not in app.config['ALLOWED_EXTENSIONS']:
+        return jsonify(ret_data(PARAMS_ERROR, data='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!'))
+    image_path = os.path.join(os.path.abspath('.'), 'static', 'face', new_filename)
 
-        db.session.add(face_obj)
-        db.session.commit()
+    f.save(image_path)
+    # 检验图片是否有人脸
+    cut_face_base64 = cut_face_image(image_path, device.d_type)
 
-        logging.info('create deviceid(%s) , face(%s): nickname: %s, sex: %s, device: %s, head: %s ' % (device.deviceid,face_obj.id, nickname, sex, device_id, new_filename))
+    if not cut_face_base64:
+        return jsonify(ret_data(FACE_NOT_FIND))
 
-        data = model_to_dict(face_obj)
-        data = dict_fill_url(data, ['head'])
-        data = dict_drop_field(data, ['img_base64', 'feature'])
+    user_id = create_noncestr()
 
-        # 发送mqtt信息到设备，获取feature值
-        user_insert(face_obj.id)
+    face_obj = FaceInfo(
+        user_id=user_id,
+        nickname=nickname,
+        sex=sex,
+        device=device_id,
+        head='face/' + new_filename,
+        img_base64=cut_face_base64
+    )
 
-        return jsonify(ret_data(SUCCESS, data=data))
+    db.session.add(face_obj)
+    db.session.commit()
+
+    logging.info('create deviceid(%s) , face(%s): nickname: %s, sex: %s, device: %s, head: %s ' % (
+    device.deviceid, face_obj.id, nickname, sex, device_id, new_filename))
+
+    data = model_to_dict(face_obj)
+    data = dict_fill_url(data, ['head'])
+    data = dict_drop_field(data, ['img_base64', 'feature'])
+
+    # 发送mqtt信息到设备，获取feature值
+    user_insert(face_obj.id)
+
+    return jsonify(ret_data(SUCCESS, data=data))
 
 
 @miniprogram_api.route('/update_face', methods=['POST'])
@@ -4120,35 +4161,7 @@ def getExternalDeviceBydeviceid():
     return jsonify(ret_data(SUCCESS,data=data))
 
 
-#根据用户绑定的外设设备 键盘给相关外设设备进行答案下发 进行答案判别程序覆盖
-# xiaojuzi 20231030
-# @miniprogram_api.route('/pushAnswerToKeyBoard', methods=['POST'])
-# @decorator_sign
-# def pushAnswerToKeyBoard():
-#
-    # openid = request.form.get('openid', None)
-    #
-    # gametype = request.form.get('gametype', None)
-    #
-    # answer = request.form.get('answer', None)
-#
-#     user = User.query.filter_by(openid=openid).first()
-#
-#     if not user or not gametype or not answer:
-#         return jsonify(ret_data(PARAMS_ERROR))
-#
-#     deviceid = request.form.get('deviceid', None)
-#
-#     data = getExternalDevice(openid,deviceid)
-#
-#     if data:
-#         #选中用户绑定的键盘外设id发送此题答案
-#         push_data = [d[deviceid] for d in data if(d['d_type'] == 2)]
-#
-#         mqttPushAnswerToKeyBoard(openid,push_data,gametype,answer)
-#
-#
-#     return jsonify(ret_data(SUCCESS, data=data))
+
 
 
 #对键盘群发题目信息 xiaojuzi 20231030 update by xiaojuzi 20240104 更新 先回退旧版本

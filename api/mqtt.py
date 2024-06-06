@@ -186,9 +186,6 @@ def mqtt_push_data() -> object:
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
-    #新增发消息等待20231021
-    count = 0
-
     for device in device_list:
         if is_free == '1':
 
@@ -206,35 +203,44 @@ def mqtt_push_data() -> object:
             # db.session.commit()
 
         else:
-            # 判断次数
-            device_course = DeviceCourse.query.filter_by(device_id=device.id, course_id=int(course_id)).first()
+            # 判断次数 不在在这判断 update by xiaojuzi 20240605
+            course = Course.query.filter_by(id=int(course_id)).first()
 
-            if not device_course:
+            if not course:
                 return jsonify(ret_data(SYSTEM_ERROR))
 
+            arg = course.save_path
+            # 更新设备当前课程
+            device.course_name = course.title
+            device.course_id = int(course_id)
+
+            # device_course = DeviceCourse.query.filter_by(device_id=device.id, course_id=int(course_id)).first()
+            #
+            # if not device_course:
+            #     return jsonify(ret_data(SYSTEM_ERROR))
             # 更新设备当前课程  临时修改去掉使用次数判断待 加回 xiaojuzi v2 20240119
             # 全部放开 领导要求 20240119 xiaojuzi v2 正常逻辑为 有下面判断if device_course.use_count:  TODO
             # arg = device_course.course.save_path
             # # 更新设备当前课程
             # device.course_name = device_course.course.title
             # device.course_id = int(course_id)
-            if device_course.use_count:
-                arg = device_course.course.save_path
-
-                # 使用次数减1
-                device_course.use_count = device_course.use_count - 1
-
-                # 更新设备当前课程
-                device.course_name = device_course.course.title
-                device.course_id = int(course_id)
-
-                # db.session.commit()
-            else:
-
-                #20231010 更新 xiaojuzi
-                data = '设备名为：'+device.devicename+'\n没有使用次数'
-
-                return jsonify(ret_data(NOT_USE_COUNT,data=data))
+            # if device_course.use_count:
+            #     arg = device_course.course.save_path
+            #
+            #     # 使用次数减1
+            #     device_course.use_count = device_course.use_count - 1
+            #
+            #     # 更新设备当前课程
+            #     device.course_name = device_course.course.title
+            #     device.course_id = int(course_id)
+            #
+            #     # db.session.commit()
+            # else:
+            #
+            #     #20231010 更新 xiaojuzi
+            #     data = '设备名为：'+device.devicename+'\n没有使用次数'
+            #
+            #     return jsonify(ret_data(NOT_USE_COUNT,data=data))
 
         push_json = {
             'type': 2,
@@ -1169,37 +1175,7 @@ def mqttPushFacePictureDataImpl(openid: str,deviceid: str,arg: str):
 
     return errcode
 
-# #下载上传的人脸转换数据 临时测试 20231120 xiaojuzi v2  注意：要自己生成一个为0的lrc文件不然机器执行会报错
-# def mqttPushFacePictureDataImpl(openid: str,deviceid: str,arg: str):
-#
-#     """
-#     数据文件 xiaojuzi v2
-#     openid: 消息来源ID，微信openid/后台
-#     deviceid: 设备id
-#     :return:
-#     """
-#
-#     logging.info('openid: %s, deviceid: %s, arg: %s' % (openid, deviceid,arg))
-#
-#     if not openid or not deviceid or not arg:
-#         return jsonify(ret_data(PARAMS_ERROR))
-#
-#     push_json = {
-#         'type': 2,
-#         'deviceid': deviceid,
-#         'fromuser': openid,
-#         'message': {
-#             #arg为文件夹名字  xiaojuzi 20231120
-#             'arg': arg,
-#             'url': HOST + '/test/' + arg
-#         }
-#     }
-#
-#     logging.info(push_json)
-#
-#     errcode = send_message(push_json)
-#
-#     return errcode
+
 
 #下载唤醒词数据 xiaojuzi 2023928
 def mqtt_push_wakeword_data(openid :str,deviceid :str,wakeword :str) -> object:
@@ -1304,15 +1280,6 @@ def mqtt_push_action():
         logging.info(push_json)
 
         errcode = send_message(push_json)
-
-        # 新增发消息等待20231107 xiaojuzi
-        # if count < 5:
-        #     errcode = send_message(push_json)
-        #     count += 1
-        # else:
-        #     time.sleep(0.1)
-        #     errcode = send_message(push_json)
-        #     count = 0
 
     db.session.commit()
 
@@ -1550,7 +1517,7 @@ def mqtt_push_ui():
     if not openid:
         return jsonify(ret_data(PARAMS_ERROR))
     message = {'operate': operate}
-    count = 0
+
 
     if arg:
         message['arg'] = arg
@@ -1576,15 +1543,6 @@ def mqtt_push_ui():
             logging.info(push_json)
 
             errcode = send_message(push_json)
-
-            # 新增发消息等待20231107 xiaojuzi
-            # if count < 5:
-            #     errcode = send_message(push_json)
-            #     count += 1
-            # else:
-            #     time.sleep(0.1)
-            #     errcode = send_message(push_json)
-            #     count = 0
 
         db.session.commit()
 
@@ -1686,34 +1644,6 @@ def upgrade():
     errcode = send_message(push_json)
 
     logging.info('固件升级 errcode : %s' % errcode)
-
-    # count = 0
-
-
-    # device_list = sortDeviceByMaster(openid)
-    #
-    # if not device_list:
-    #     return jsonify(ret_data(DEVICE_NOT_FIND))
-
-    # for device in device_list:
-
-        # push_json['deviceid'] =device.deviceid
-
-        #1 为true 0为false
-        # device.is_upgrade = 0
-        #
-        # errcode = send_message(push_json)
-        #
-        # logging.info('固件升级 errcode : %s' % errcode)
-
-        # 新增发消息等待20231107 xiaojuzi
-        # if count < 5:
-        #     errcode = send_message(push_json)
-        #     count += 1
-        # else:
-        #     time.sleep(0.1)
-        #     errcode = send_message(push_json)
-        #     count = 0
 
     db.session.commit()
 
