@@ -442,7 +442,7 @@ def iot_send():
         feature = message['feature']
         FaceInfo.query.filter_by(user_id=user_id).update({'feature': feature})
         db.session.commit()
-    # 上报识别人数是否超数 暂时不检测人脸数量 xiaojuzi 2023923
+    # 上报识别人数是否超数 暂时不检测人脸数量 xiaojuzi 2023923  修改为检测人脸数量 20240607 xiaojuzi
     if int(i_type) == 9:
         device = Device.query.filter_by(deviceid=deviceid).first()
         if not device:
@@ -454,7 +454,7 @@ def iot_send():
         face_info_count = FaceInfo.query.filter_by(device=device.id, status=1).count()
         logging.info('device face num: %d, service face num: %d' % (number, face_info_count))
         #修改免费课程不进行人脸数量检测  update by wind 20230328
-        if is_free != 'free' and number - face_info_count > 20:
+        if is_free != 'free' and number - face_info_count > 1:
             logging.info('face too_many.mp3')
             return jsonify({'code': 1, 'payload': {'url': os.path.join(HOST, 'device', 'too_many.mp3')}})
     return jsonify(iot_msg_manager(SUCCESS))
@@ -599,15 +599,15 @@ def init_course(device_id: int):
         )
         db.session.add(device_count)
         # db.session.commit()
-    course_list = Course.query.all()
-    for course in course_list:
-        dc = DeviceCourse.query.filter_by(device_id=device_id, course_id=course.id).first()
-        if not dc:
-            device_course = DeviceCourse(
-                course_id=course.id,
-                device_id=device_id
-            )
-            db.session.add(device_course)
+    # course_list = Course.query.all()
+    # for course in course_list:
+    #     dc = DeviceCourse.query.filter_by(device_id=device_id, course_id=course.id).first()
+    #     if not dc:
+    #         device_course = DeviceCourse(
+    #             course_id=course.id,
+    #             device_id=device_id
+    #         )
+    #         db.session.add(device_course)
             # db.session.commit()
     # category_list = Category.query.all()
     # for category in category_list:

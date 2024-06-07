@@ -2699,7 +2699,6 @@ def device_unbind():
     if data:
         jwt_redis_blocklist.delete(f"iot_notify:{deviceid}")
 
-
     return jsonify(ret_data(SUCCESS,data='操作成功'))
 
 
@@ -2976,6 +2975,104 @@ def getUserDeviceList():
     return jsonify(ret_data(SUCCESS, data=data))
 
 
+@miniprogram_api.route('/getUserDeviceCount', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+# 获取用户设备使用次数 20240607 xiaojuzi
+def getUserDeviceCount():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    deviceId = request.form.get('deviceId', None)
+    openid = current_user['openid']
+
+    #20240604 update by xiaojuzi 选中要上传的机器号
+    device = User_Device.query.filter_by(userid=openid, deviceid=deviceId).first()
+    if not device:
+        return jsonify(ret_data(UNBIND_DEVICE))
+
+    de = Device.query.filter_by(deviceid=deviceId).first()
+
+    dc = DeviceCount.query.filter_by(device_id=de.id).first()
+    if not dc:
+        return jsonify(ret_data(UNBIND_DEVICE))
+
+    return jsonify(ret_data(SUCCESS, data=dc.use_count))
+
+
+@miniprogram_api.route('/checkUserDeviceOnline', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+# 检查用户设备是否在线 20240607 xiaojuzi
+def checkUserDeviceOnline():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    deviceId = request.form.get('deviceId', None)
+    if not deviceId:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    notify_time = jwt_redis_blocklist.hget(f"iot_notify:{deviceId}", "updateTime")
+    if not notify_time:
+        notify_time = 0
+
+    if not (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
+        return jsonify(ret_data(SUCCESS, data=False))
+
+    return jsonify(ret_data(SUCCESS, data=True))
+
+
+
+@miniprogram_api.route('/getFaceDetail', methods=['POST'])
+@jwt_required()
+# @decorator_sign  获取人脸详情 20240607 xiaojuzi
+def getFaceDetail():
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    face_id = request.form.get('face_id', None)
+    face = FaceInfo.query.get(int(face_id))
+    if face:
+        data = model_to_dict(face)
+        data = dict_fill_url(data, ['head'])
+        data = dict_drop_field(data, ['img_base64', 'feature'])
+
+        fd = FaceDevice.query.filter_by(face_id=face_id).first()
+        data['use_count'] = fd.use_count if fd else 0
+
+        return jsonify(ret_data(SUCCESS, data=data))
+    return jsonify(ret_data(FACE_NOT_FIND))
+
+
+@miniprogram_api.route('/deleteFaceDetail', methods=['POST'])
+@jwt_required()
+# @decorator_sign  删除人脸详情 20240607 xiaojuzi
+def deleteFaceDetail():
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    face_id = request.form.get('face_id', None)
+
+    fd = FaceDevice.query.filter_by(face_id=face_id).first()
+    if fd:
+        #返回次数
+        dc = DeviceCount.query.filter_by(device_id=fd.device_id).first()
+        if dc:
+            dc.use_count = int(dc.use_count) + int(fd.use_count)
+        db.session.delete(fd)
+
+    face = FaceInfo.query.get(int(face_id))
+    if face:
+        db.session.delete(face)
+    #向机器发送删除命令
+    user_remove(face.id)
+    db.session.commit()
+
+    return jsonify(ret_data(SUCCESS))
 
 @miniprogram_api.route('/face_info', methods=['POST'])
 @jwt_required()
@@ -3024,12 +3121,13 @@ def face_info():
 
     if face_id:
         # 根据 face_id 查询对应的人脸信息 xiaojujzi
-        face = FaceInfo.query.get(int(face_id))
-        if face:
-            data = model_to_dict(face)
-            data = dict_fill_url(data, ['head'])
-            data = dict_drop_field(data, ['img_base64', 'feature'])
-            face_all_list.append(data)
+        # face = FaceInfo.query.get(int(face_id))
+        # if face:
+        #     data = model_to_dict(face)
+        #     data = dict_fill_url(data, ['head'])
+        #     data = dict_drop_field(data, ['img_base64', 'feature'])
+        #     face_all_list.append(data)
+        pass
     else:
         device_id = request.form.get('id', None)
         # 根据设备 ID 查询该设备关联的所有人脸信息 xiaojuzi
@@ -3117,19 +3215,27 @@ def create_face():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
     nickname = request.form.get('nickname', '')
     sex = request.form.get('sex', 0)
     sex = 0 if sex in ['男', '0', 0] else 1
-    deviceid = request.form.get('deviceid', None)
+    device_id = request.form.get('id', None)
+
+    use_count = request.form.get('use_count', 0)
 
     #20240604 update by xiaojuzi 选中要上传的机器号
-    device = Device.query.filter_by(deviceid=deviceid).first()
+    device = Device.query.filter_by(id=device_id).first()
     if not device:
         return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    deviceCount = DeviceCount.query.filter_by(device_id=device_id).first()
+    deviceCountNum = int(deviceCount.use_count)
+    use_count = int(use_count)
+    if ((deviceCountNum - use_count) < 0):
+
+        return jsonify(ret_data(DEVICE_COUNT_EXCEED))
 
     #判断是否在线 在线则上传
     notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
@@ -3147,14 +3253,14 @@ def create_face():
 
     # for device in device_list:
 
-    device_id = device.id
+    # device_id = device.id
 
     # 上传图片
     f = request.files.get('upload')
     if not f:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    extension = f.filename.split('.')[1].lower()
+    extension = f.filename.split('.')[-1].lower()
     new_filename = str(int(time.time())) + '.' + extension
 
     if extension not in app.config['ALLOWED_EXTENSIONS']:
@@ -3168,19 +3274,29 @@ def create_face():
     if not cut_face_base64:
         return jsonify(ret_data(FACE_NOT_FIND))
 
-    user_id = create_noncestr()
+    # user_id = create_noncestr()
 
     face_obj = FaceInfo(
-        user_id=user_id,
+        user_id=openid,
         nickname=nickname,
         sex=sex,
         device=device_id,
         head='face/' + new_filename,
         img_base64=cut_face_base64
     )
-
     db.session.add(face_obj)
-    db.session.commit()
+    #刷新会话
+    db.session.flush()
+
+    fd = FaceDevice(
+        face_id=face_obj.id,
+        device_id=device_id,
+        use_count=use_count
+    )
+    db.session.add(fd)
+
+    # 更新设备使用次数
+    deviceCount.use_count = deviceCountNum - use_count
 
     logging.info('create deviceid(%s) , face(%s): nickname: %s, sex: %s, device: %s, head: %s ' % (
     device.deviceid, face_obj.id, nickname, sex, device_id, new_filename))
@@ -3191,6 +3307,8 @@ def create_face():
 
     # 发送mqtt信息到设备，获取feature值
     user_insert(face_obj.id)
+
+    db.session.commit()
 
     return jsonify(ret_data(SUCCESS, data=data))
 
@@ -3218,65 +3336,146 @@ def update_face():
     if not face_id:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    # xiaojuzi
-    # 默认在一个机器上创建人脸 只上传一个人脸
-    device_list = getDeviceByOpenid(openid)
+    device_id = request.form.get('id', None)
+    use_count = request.form.get('use_count', 0)
 
-    if not device_list:
+    #20240604 update by xiaojuzi 选中要上传的机器号
+    device = Device.query.filter_by(id=device_id).first()
+    if not device:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
-    for device in device_list:
+    log_str = ''
 
-        face_obj = FaceInfo.query.get(int(face_id))
-        # 上传图片
-        log_str = ''
-        f = request.files.get('upload')
-        if f:
-            extension = f.filename.split('.')[1].lower()
+    #原来此人脸在这个设备分配的次数
+    faceDevice = FaceDevice.query.filter_by(face_id=face_id).first()
+    if not faceDevice:
+        return jsonify(ret_data(FACE_NOT_FIND))
+    #退还次数
+    if int(faceDevice.use_count) > int(use_count):
+        deviceCount = DeviceCount.query.filter_by(device_id=faceDevice.device_id).first()
+        deviceCount.use_count = int(deviceCount.use_count) + int(faceDevice.use_count) - int(use_count)
+        faceDevice.use_count = int(use_count)
+    else:
+        #多要次数
+        deviceCount = DeviceCount.query.filter_by(device_id=faceDevice.device_id).first()
+        if ((int(deviceCount.use_count) + int(faceDevice.use_count) - int(use_count) ) < 0):
+            return jsonify(ret_data(DEVICE_COUNT_EXCEED))
+        deviceCount.use_count = int(deviceCount.use_count) + int(faceDevice.use_count) - int(use_count)
+        faceDevice.use_count = int(use_count)
 
-            new_filename = str(int(time.time())) + '.' + extension
+    #判断是否在线 在线则上传
+    notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
+    if not notify_time:
+        notify_time = 0
 
-            if extension not in app.config['ALLOWED_EXTENSIONS']:
-                return jsonify(ret_data(PARAMS_ERROR, data='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!'))
+    if not (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
+        return jsonify(ret_data(DEVICE_NOT_FIND))
 
-            image_path = os.path.join(os.path.abspath('.'), 'static', 'face', new_filename)
 
-            f.save(image_path)
+    face_obj = FaceInfo.query.get(int(face_id))
+    # 上传图片
+    f = request.files.get('upload')
+    if f:
+        extension = f.filename.split('.')[-1].lower()
 
-            # 检验图片是否有人脸
-            cut_face_base64 = cut_face_image(image_path, device.d_type)
+        new_filename = str(int(time.time())) + '.' + extension
 
-            if not cut_face_base64:
-                return jsonify(ret_data(FACE_NOT_FIND))
+        if extension not in app.config['ALLOWED_EXTENSIONS']:
+            return jsonify(ret_data(PARAMS_ERROR, data='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!'))
 
-            face_obj.head = 'face/' + new_filename
-            face_obj.img_base64 = cut_face_base64
-            log_str += 'head: %s' % new_filename
+        image_path = os.path.join(os.path.abspath('.'), 'static', 'face', new_filename)
 
-            # 发送mqtt信息到设备，获取feature值
-            user_insert(face_obj.id)
-        if nickname:
-            face_obj.nickname = nickname
-            log_str += 'nickname: %s' % nickname
-        if sex is not None:
-            face_obj.sex = sex
-            log_str += 'sex: %s' % sex
-        db.session.commit()
+        f.save(image_path)
 
-        logging.info('update by deviceid(%s) , face(%s): %s' % (device.deviceid,face_obj.id, log_str))
+        # 检验图片是否有人脸
+        cut_face_base64 = cut_face_image(image_path, device.d_type)
 
-        data = model_to_dict(face_obj)
-        data = dict_fill_url(data, ['head'])
-        data = dict_drop_field(data, ['img_base64', 'feature'])
+        if not cut_face_base64:
+            return jsonify(ret_data(FACE_NOT_FIND))
 
-        return jsonify(ret_data(SUCCESS, data=data))
+        face_obj.head = 'face/' + new_filename
+        face_obj.img_base64 = cut_face_base64
+        log_str += 'head: %s' % new_filename
+
+        # 发送mqtt信息到设备，获取feature值
+        user_insert(face_obj.id)
+
+    if nickname:
+        face_obj.nickname = nickname
+        log_str += 'nickname: %s' % nickname
+    if sex is not None:
+        face_obj.sex = sex
+        log_str += 'sex: %s' % sex
+
+    logging.info('update by deviceid(%s) , face(%s): %s' % (device.deviceid, face_obj.id, log_str))
+
+    data = model_to_dict(face_obj)
+    data = dict_fill_url(data, ['head'])
+    data = dict_drop_field(data, ['img_base64', 'feature'])
+
+    db.session.commit()
+
+    return jsonify(ret_data(SUCCESS, data=data))
+
+    # xiaojuzi   以下为旧逻辑 暂时保留 20240607
+    # 默认在一个机器上创建人脸 只上传一个人脸
+    # device_list = getDeviceByOpenid(openid)
+    #
+    # if not device_list:
+    #     return jsonify(ret_data(DEVICE_NOT_FIND))
+    #
+    # for device in device_list:
+    #
+    #     face_obj = FaceInfo.query.get(int(face_id))
+    #     # 上传图片
+    #     log_str = ''
+    #     f = request.files.get('upload')
+    #     if f:
+    #         extension = f.filename.split('.')[1].lower()
+    #
+    #         new_filename = str(int(time.time())) + '.' + extension
+    #
+    #         if extension not in app.config['ALLOWED_EXTENSIONS']:
+    #             return jsonify(ret_data(PARAMS_ERROR, data='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!'))
+    #
+    #         image_path = os.path.join(os.path.abspath('.'), 'static', 'face', new_filename)
+    #
+    #         f.save(image_path)
+    #
+    #         # 检验图片是否有人脸
+    #         cut_face_base64 = cut_face_image(image_path, device.d_type)
+    #
+    #         if not cut_face_base64:
+    #             return jsonify(ret_data(FACE_NOT_FIND))
+    #
+    #         face_obj.head = 'face/' + new_filename
+    #         face_obj.img_base64 = cut_face_base64
+    #         log_str += 'head: %s' % new_filename
+    #
+    #         # 发送mqtt信息到设备，获取feature值
+    #         user_insert(face_obj.id)
+    #     if nickname:
+    #         face_obj.nickname = nickname
+    #         log_str += 'nickname: %s' % nickname
+    #     if sex is not None:
+    #         face_obj.sex = sex
+    #         log_str += 'sex: %s' % sex
+    #     db.session.commit()
+    #
+    #     logging.info('update by deviceid(%s) , face(%s): %s' % (device.deviceid,face_obj.id, log_str))
+    #
+    #     data = model_to_dict(face_obj)
+    #     data = dict_fill_url(data, ['head'])
+    #     data = dict_drop_field(data, ['img_base64', 'feature'])
+    #
+    #     return jsonify(ret_data(SUCCESS, data=data))
 
 @miniprogram_api.route('/face_count_verify', methods=['POST'])
 @jwt_required()
 # @decorator_sign
 def face_count_verify():
     """
-    检测人脸数据是否符合，人数据超限，>20 则需暂停播放
+    检测人脸数据是否符合，人数据超限， 则需暂停播放
      xiaojuzi v2 update by 2023922
     """
 
@@ -3284,30 +3483,46 @@ def face_count_verify():
     if not current_user:
         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
 
-
     # openid = request.form.get('openid', None)
     # 20240202 xiaojuzi v2 去掉openid的依赖性
     openid = current_user['openid']
-    data = {'verify': True, 'content': ''}
+    deviceid = request.form.get('deviceId', None)
 
-    device_list = getDeviceByOpenid(openid)
-
-    if not device_list:
+    device = Device.query.filter_by(deviceid=deviceid).first()
+    if not device:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
-    for device in device_list:
+    data = {'verify': True, 'content': ''}
+    face_info_count = FaceInfo.query.filter_by(device=device.id, status=1).count()
 
-        face_info_count = FaceInfo.query.filter_by(device=device.id, status=1).count()
+    # print(device.face_count, face_info_count)
 
-        # print(device.face_count, face_info_count)
-
-        if device.face_count - face_info_count > 20:
-            data = {'verify': False, 'content': '人数超限了，请确认'}
-            # 弹过后将设备数量清0
-            device.face_count = 0
-            db.session.commit()
+    if device.face_count - face_info_count > 1:
+        data = {'verify': False, 'content': '人数超限了，请确认'}
+        # 弹过后将设备数量清0
+        device.face_count = 0
+        db.session.commit()
 
     return jsonify(ret_data(SUCCESS, data=data))
+    # 20240607 xiaojuzi  以下为老逻辑
+    # device_list = getDeviceByOpenid(openid)
+    #
+    # if not device_list:
+    #     return jsonify(ret_data(DEVICE_NOT_FIND))
+    #
+    # for device in device_list:
+    #
+    #     face_info_count = FaceInfo.query.filter_by(device=device.id, status=1).count()
+    #
+    #     # print(device.face_count, face_info_count)
+    #
+    #     if device.face_count - face_info_count > 20:
+    #         data = {'verify': False, 'content': '人数超限了，请确认'}
+    #         # 弹过后将设备数量清0
+    #         device.face_count = 0
+    #         db.session.commit()
+    #
+    # return jsonify(ret_data(SUCCESS, data=data))
 
 
 @miniprogram_api.route('/dev_online', methods=['POST'])
