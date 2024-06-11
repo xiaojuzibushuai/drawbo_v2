@@ -12,6 +12,7 @@ from sqlalchemy import func, Integer, cast
 
 from api.auth import jwt_redis_blocklist
 from config import HOST, ADMIN_HOST, DEVICE_EXPIRE_TIME
+from models.FaceDevice import FaceDevice
 from models.course import Course, DeviceCourse
 from models.device import Device
 from models.external_device import ExternalDevice
@@ -141,13 +142,20 @@ def mqtt_push_music():
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
+    data = []
     for device in device_list:
         push_json['deviceid'] = device.deviceid
 
         logging.info(push_json)
         errcode = send_message(push_json)
 
-    return jsonify(ret_data(errcode))
+        data.append({
+            'deviceid': device.deviceid,
+            'errcode': errcode
+        })
+
+
+    return jsonify(ret_data(SUCCESS, data=data))
 
 @mqtt_api.route('/data', methods=['POST'])
 @jwt_required()
@@ -169,10 +177,12 @@ def mqtt_push_data() -> object:
     openid = current_user['openid']
     course_id = request.form.get('course_id', None)
     is_free = request.form.get('is_free', '0')
+    # face_id = request.form.get('face_id', None)
 
-    logging.info('openid: %s, course_id: %s, is_free: %s' % (openid, course_id, is_free))
     if not openid or not course_id:
         return jsonify(ret_data(PARAMS_ERROR))
+
+    logging.info('openid: %s, course_id: %s, is_free: %s' % (openid, course_id, is_free))
 
     if course_id == 'null':
         course_id = None
@@ -186,6 +196,7 @@ def mqtt_push_data() -> object:
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
+    data = []
     for device in device_list:
         if is_free == '1':
 
@@ -203,7 +214,15 @@ def mqtt_push_data() -> object:
             # db.session.commit()
 
         else:
-            # 判断次数 不在在这判断 update by xiaojuzi 20240605
+            # 判断次数 真实扣减 （先不扣 TODO 硬件对接） update by xiaojuzi 20240605
+            # faceDevice = FaceDevice.query.filter_by(face_id=face_id, device_id=device.id).first()
+            # if not faceDevice:
+            #     continue
+            # if faceDevice.use_count > 1:
+            #     faceDevice.use_count = int(faceDevice.use_count) - 1
+            # else:
+            #     continue
+
             course = Course.query.filter_by(id=int(course_id)).first()
 
             if not course:
@@ -256,6 +275,16 @@ def mqtt_push_data() -> object:
 
         errcode = send_message(push_json)
 
+        data.append({
+            'deviceid': device.deviceid,
+            'devicename': device.devicename,
+            'course_id': course_id,
+            'course_name': course.title if course else 'free',
+            # 'face_id': face_id,
+            'errcode': errcode
+        })
+        logging.info(data)
+
         # 新增发消息等待20231107 xiaojuzi
         # if count < 5:
         #     errcode = send_message(push_json)
@@ -267,7 +296,7 @@ def mqtt_push_data() -> object:
 
     db.session.commit()
 
-    return jsonify(ret_data(errcode))
+    return jsonify(ret_data(SUCCESS, data=data))
 
 
 @mqtt_api.route('/newGetKeyboardDataImpl', methods=['GET','POST'])
@@ -1263,6 +1292,7 @@ def mqtt_push_action():
     if not device_list:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
+    data = []
     for device in device_list:
 
         push_json['deviceid'] = device.deviceid
@@ -1281,9 +1311,14 @@ def mqtt_push_action():
 
         errcode = send_message(push_json)
 
+        data.append({
+            'deviceid': device.deviceid,
+            'errcode': errcode
+        })
+
     db.session.commit()
 
-    return jsonify(ret_data(errcode))
+    return jsonify(ret_data(SUCCESS, data=data))
 
 
 #内部方法 不提供接口功能 xiaojuzi 批量调整设备横版竖版 20231114
@@ -1518,7 +1553,7 @@ def mqtt_push_ui():
         return jsonify(ret_data(PARAMS_ERROR))
     message = {'operate': operate}
 
-
+    data = []
     if arg:
         message['arg'] = arg
 
@@ -1544,9 +1579,14 @@ def mqtt_push_ui():
 
             errcode = send_message(push_json)
 
+            data.append({
+                'deviceid': device.deviceid,
+                'errcode': errcode
+            })
+
         db.session.commit()
 
-    return jsonify(ret_data(errcode))
+    return jsonify(ret_data(SUCCESS, data=data))
 
 
 @mqtt_api.route('/sd', methods=['POST'])

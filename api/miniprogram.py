@@ -2942,6 +2942,52 @@ def course():
     # return jsonify(ret_data(SUCCESS, data=course_list))
 
 
+@miniprogram_api.route('/checkCourseIsPlay', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+# 预扣次数判断是否可以播放课程 20240611 xiaojuzi
+def checkCourseIsPlay():
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+    openid = current_user['openid']
+    face_id = request.form.get('face_id', None)
+    if not face_id:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    device_list = getDeviceByOpenid(openid)
+
+    if not device_list:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    data = []
+    for d in device_list:
+        faceDevice = FaceDevice.query.filter_by(face_id=face_id, device_id=d.id).first()
+        if not faceDevice:
+            continue
+
+        if faceDevice.use_count > 1:
+            data.append({
+                'id': d.id,
+                'IsDevicePlay': True,
+                'deviceId': d.deviceid,
+                'deviceName': d.devicename,
+                'wakeword': d.wakeword,
+                'isMaster': d.is_master
+            })
+        else:
+            data.append({
+                'id': d.id,
+                'IsDevicePlay': False,
+                'deviceId': d.deviceid,
+                'deviceName': d.devicename,
+                'wakeword': d.wakeword,
+                'isMaster': d.is_master
+            })
+    return jsonify(ret_data(SUCCESS, data=data))
+
+
+
 @miniprogram_api.route('/getUserDeviceList', methods=['POST'])
 @jwt_required()
 # @decorator_sign
@@ -3069,7 +3115,9 @@ def deleteFaceDetail():
     if face:
         db.session.delete(face)
     #向机器发送删除命令
-    user_remove(face.id)
+    result = user_remove(face.id)
+    if result != 0:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
     db.session.commit()
 
     return jsonify(ret_data(SUCCESS))
@@ -3238,11 +3286,9 @@ def create_face():
         return jsonify(ret_data(DEVICE_COUNT_EXCEED))
 
     #判断是否在线 在线则上传
-    notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
-    if not notify_time:
-        notify_time = 0
+    result = check_device_online(device.deviceid)
 
-    if not (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
+    if not result:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
     # 默认在一个机器上创建人脸 只上传一个人脸
@@ -3306,7 +3352,9 @@ def create_face():
     data = dict_drop_field(data, ['img_base64', 'feature'])
 
     # 发送mqtt信息到设备，获取feature值
-    user_insert(face_obj.id)
+    result1 = user_insert(face_obj.id)
+    if result1 != 0:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
 
     db.session.commit()
 
@@ -3364,11 +3412,9 @@ def update_face():
         faceDevice.use_count = int(use_count)
 
     #判断是否在线 在线则上传
-    notify_time = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}", "updateTime")
-    if not notify_time:
-        notify_time = 0
+    result = check_device_online(device.deviceid)
 
-    if not (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
+    if not result:
         return jsonify(ret_data(DEVICE_NOT_FIND))
 
 
@@ -3398,7 +3444,10 @@ def update_face():
         log_str += 'head: %s' % new_filename
 
         # 发送mqtt信息到设备，获取feature值
-        user_insert(face_obj.id)
+        result1 = user_insert(face_obj.id)
+        if result1 != 0:
+            return jsonify(ret_data(DEVICE_NOT_FIND))
+
 
     if nickname:
         face_obj.nickname = nickname
@@ -3469,6 +3518,19 @@ def update_face():
     #     data = dict_drop_field(data, ['img_base64', 'feature'])
     #
     #     return jsonify(ret_data(SUCCESS, data=data))
+
+def check_device_online(deviceid: str) -> bool:
+    """
+    判断设备是否在线 20240611 xiaojuzi
+    """
+    notify_time = jwt_redis_blocklist.hget(f"iot_notify:{deviceid}", "updateTime")
+    if not notify_time:
+        notify_time = 0
+
+    if not (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
+        return False
+
+    return True
 
 @miniprogram_api.route('/face_count_verify', methods=['POST'])
 @jwt_required()

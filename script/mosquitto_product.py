@@ -1,8 +1,9 @@
 import json
 import logging
+from datetime import datetime
 
 from api.auth import jwt_redis_blocklist
-from config import MQTT_USERNAME, MQTT_PASSWORD, MQTT_HOST, MQTT_PORT
+from config import MQTT_USERNAME, MQTT_PASSWORD, MQTT_HOST, MQTT_PORT, DEVICE_EXPIRE_TIME
 from models.device import Device
 from models.user import User, FaceInfo
 from models.user_device import User_Device
@@ -135,6 +136,15 @@ def user_insert(face_id: int) -> int:
     face_info = FaceInfo.query.get(face_id)
     deviceid = face_info.device_info.deviceid
     topic = face_info.device_info.topic
+
+    #判断是否在线 在线则上传
+    notify_time = jwt_redis_blocklist.hget(f"iot_notify:{deviceid}", "updateTime")
+    if not notify_time:
+        notify_time = 0
+
+    if not (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
+        return DEVICE_NOT_FIND
+
     push_dict = {
         "action": "user-insert",
         "header": {
@@ -161,6 +171,15 @@ def user_remove(face_id: int) -> int:
     face_info = FaceInfo.query.get(face_id)
     deviceid = face_info.device_info.deviceid
     topic = face_info.device_info.topic
+
+    #判断是否在线 在线则上传
+    notify_time = jwt_redis_blocklist.hget(f"iot_notify:{deviceid}", "updateTime")
+    if not notify_time:
+        notify_time = 0
+
+    if not (int(datetime.now().timestamp()) - int(notify_time) <= DEVICE_EXPIRE_TIME):
+        return DEVICE_NOT_FIND
+
     push_dict = {
         "action": "user-remove",
         "header": {
