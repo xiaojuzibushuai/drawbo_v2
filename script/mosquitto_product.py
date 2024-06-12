@@ -90,7 +90,7 @@ def send_message(push_dict: dict)->int:
     # 20240612 暂时为v1版本机器发放到原服务器上 需在这里判断
     tempDevice = Device.query.filter_by(deviceid=deviceid).first()
     if tempDevice.software_version == 'v1':
-        return sendMessageV1ToTopic(push_dict,topic)
+        return sendMessageV1ToTopic(topic, push_dict)
     else:
         return send_message_to_topic(topic, push_dict)
 
@@ -123,7 +123,7 @@ def sendMessageV1ToTopic(topic: str, push_dict: dict) -> int:
     # 初始化MQTT
     client = mqtt.Client()
     client.username_pw_set(username=MQTT_USERNAME, password=MQTT_PASSWORD)
-    client.connect('101.201.75.83', '1883')
+    client.connect('101.201.75.83', 1883)
 
     # 计划异步实现 xiaojuzi 20231023 qos=0 最多一次  1 最少一次 2 只有一次
 
