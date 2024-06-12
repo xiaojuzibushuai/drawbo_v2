@@ -86,7 +86,13 @@ def send_message(push_dict: dict)->int:
         else:  # 否则返回h5提示
             pass
             # return DEVICE_BUSY
-    return send_message_to_topic(topic, push_dict)
+
+    # 20240612 暂时为v1版本机器发放到原服务器上 需在这里判断
+    tempDevice = Device.query.filter_by(deviceid=deviceid).first()
+    if tempDevice.software_version == 'v1':
+        return sendMessageV1ToTopic(push_dict,topic)
+    else:
+        return send_message_to_topic(topic, push_dict)
 
 
 #xiaojuzi  给外设设备发消息 自定义topic  20231030
@@ -104,6 +110,27 @@ def send_external_message(push_dict: dict,topic)->int:
 
     client.publish(topic, push_body, 1)
     logging.info("send_external_message_success: %s,topic: %s" % (push_body, topic))
+    return SUCCESS
+
+
+def sendMessageV1ToTopic(topic: str, push_dict: dict) -> int:
+    """
+    :param topic:
+    :param push_dict: 结构
+    :return: errcode
+    """
+    push_body = str.encode(json.dumps(push_dict))
+    # 初始化MQTT
+    client = mqtt.Client()
+    client.username_pw_set(username=MQTT_USERNAME, password=MQTT_PASSWORD)
+    client.connect('101.201.75.83', '1883')
+
+    # 计划异步实现 xiaojuzi 20231023 qos=0 最多一次  1 最少一次 2 只有一次
+
+    client.publish(topic, push_body, 1)
+
+    logging.info("send_message_to_topic_success: %s,topic: %s" % (push_body, topic))
+
     return SUCCESS
 
 def send_message_to_topic(topic: str, push_dict: dict)->int:

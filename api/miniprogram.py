@@ -3180,6 +3180,256 @@ def deleteFaceDetail():
 
     return jsonify(ret_data(SUCCESS))
 
+
+# @miniprogram_api.route('/face_info', methods=['POST'])
+# @jwt_required()
+# # @decorator_sign
+# def face_info():
+#     """
+#     人脸信息/学生管理 v2 xiaojuzi
+#     :return: json
+#     """
+#     current_user = get_jwt_identity()
+#     if not current_user:
+#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+#
+#     # openid = request.form.get('openid', None)
+#     # 20240202 xiaojuzi v2 去掉openid的依赖性
+#     openid = current_user['openid']
+#     face_id = request.form.get('face_id', None)
+#     update_data = request.form.get('update_data', None)
+#     # face_id,true;face_id,false;face_id,delete
+#     if update_data:
+#         try:
+#             logging.info(update_data)
+#             online_user = []                   # 需要下线的用户
+#             for fi in update_data.split(';'):
+#                 face, status = fi.split(',')
+#                 f = FaceInfo.query.get(face)
+#                 if status == 'delete':
+#                     user_remove(f.id)
+#                     db.session.delete(f)
+#                 else:
+#                     f.status = 1 if status == 'true' else 0
+#                     online_user.append(f.id)
+#                 db.session.commit()
+#             if online_user:
+#                 FaceInfo.query.filter(FaceInfo.id.notin_(online_user)).update({FaceInfo.status: 0}, synchronize_session='fetch')
+#                 db.session.commit()
+#         except Exception as e:
+#             logging.info(e)
+#             return jsonify(ret_data(SYSTEM_ERROR))
+#
+#     # 查询该设备学员信息
+#     #只要绑定设备默认所有设备的人脸都可共享
+#     face_all_list = []
+#
+#     device_list = getDeviceByOpenid(openid)
+#
+#     if not device_list:
+#         return jsonify(ret_data(DEVICE_NOT_FIND))
+#
+#     for device in device_list:
+#
+#         device_id = device.id
+#
+#         if face_id:
+#             #根据 face_id 查询对应的人脸信息 xiaojujzi
+#             face = FaceInfo.query.get(int(face_id))
+#
+#             data = []
+#             if face:
+#
+#                 data = model_to_dict(face)
+#                 data = dict_fill_url(data, ['head'])
+#                 data = dict_drop_field(data, ['img_base64', 'feature'])
+#
+#                 face_all_list.append(data)
+#
+#             # else:
+#             #     return jsonify(ret_data(PARAMS_ERROR))
+#
+#         else:
+#
+#             #根据设备 ID 查询该设备关联的所有人脸信息 xiaojuzi
+#             face = FaceInfo.query.filter_by(device=device_id).all()
+#
+#             data = []
+#             if face:
+#                 data = model_to_dict(face)
+#                 data = dict_fill_url(data, ['head'])
+#                 data = dict_drop_field(data, ['img_base64', 'feature'])
+#
+#                 face_all_list.append(data)
+#
+#     #去掉嵌套列表 xiaojuzi
+#     new_face_all_list = []
+#
+#     for innerlist in face_all_list:
+#         if is_nested_list(innerlist):
+#             for face_list in innerlist:
+#                 new_face_all_list.append(face_list)
+#         else:
+#             new_face_all_list.append(innerlist)
+#
+#     # # 去重 用集合推导式 先转换为tuple 将tuple放入set集合 在转换为字典 不用去重 不同设备的人脸信息不一样
+#     # unique_new_face_all_list = [dict(t) for t in {tuple(sorted(d.items())) for d in new_face_all_list}]
+#
+#     return jsonify(ret_data(SUCCESS, data=new_face_all_list))
+#
+#
+# @miniprogram_api.route('/create_face', methods=['POST'])
+# @jwt_required()
+# # @decorator_sign
+# def create_face():
+#     """ 人脸头像上传接口
+#         xiaojuzi v2 update by 2023922
+#      """
+#
+#     current_user = get_jwt_identity()
+#     if not current_user:
+#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+#
+#
+#     # openid = request.form.get('openid', None)
+#     # 20240202 xiaojuzi v2 去掉openid的依赖性
+#     openid = current_user['openid']
+#     nickname = request.form.get('nickname', '')
+#     sex = request.form.get('sex', 0)
+#     sex = 0 if sex in ['男', '0', 0] else 1
+#
+#     # 默认在一个机器上创建人脸 只上传一个人脸
+#     device_list = getDeviceByOpenid(openid)
+#
+#     if not device_list:
+#         return jsonify(ret_data(DEVICE_NOT_FIND))
+#
+#     for device in device_list:
+#
+#         device_id = device.id
+#
+#         # 上传图片
+#         f = request.files.get('upload')
+#         if not f:
+#             return jsonify(ret_data(PARAMS_ERROR))
+#
+#         extension = f.filename.split('.')[1].lower()
+#         new_filename = str(int(time.time())) + '.' + extension
+#
+#         if extension not in app.config['ALLOWED_EXTENSIONS']:
+#             return jsonify(ret_data(PARAMS_ERROR, data='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!'))
+#         image_path = os.path.join(os.path.abspath('.'), 'static', 'face', new_filename)
+#
+#         f.save(image_path)
+#         # 检验图片是否有人脸
+#         cut_face_base64 = cut_face_image(image_path, device.d_type)
+#
+#         if not cut_face_base64:
+#             return jsonify(ret_data(FACE_NOT_FIND))
+#
+#         user_id = create_noncestr()
+#
+#         face_obj = FaceInfo(
+#             user_id=user_id,
+#             nickname=nickname,
+#             sex=sex,
+#             device=device_id,
+#             head='face/' + new_filename,
+#             img_base64=cut_face_base64
+#         )
+#
+#         db.session.add(face_obj)
+#         db.session.commit()
+#
+#         logging.info('create deviceid(%s) , face(%s): nickname: %s, sex: %s, device: %s, head: %s ' % (device.deviceid,face_obj.id, nickname, sex, device_id, new_filename))
+#
+#         data = model_to_dict(face_obj)
+#         data = dict_fill_url(data, ['head'])
+#         data = dict_drop_field(data, ['img_base64', 'feature'])
+#
+#         # 发送mqtt信息到设备，获取feature值
+#         user_insert(face_obj.id)
+#
+#         return jsonify(ret_data(SUCCESS, data=data))
+#
+#
+# @miniprogram_api.route('/update_face', methods=['POST'])
+# @jwt_required()
+# # @decorator_sign
+# def update_face():
+#     """ 人脸头像修改接口
+#         xiaojuzi v2 update by 2023922
+#     """
+#     current_user = get_jwt_identity()
+#     if not current_user:
+#         return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+#
+#     # openid = request.form.get('openid', None)
+#     # 20240202 xiaojuzi v2 去掉openid的依赖性
+#     openid = current_user['openid']
+#     nickname = request.form.get('nickname', '')
+#     face_id = request.form.get('face_id', None)
+#     sex = request.form.get('sex', None)
+#     if sex is not None:
+#         sex = 0 if sex in ['男', '0', 0] else 1
+#
+#     if not face_id:
+#         return jsonify(ret_data(PARAMS_ERROR))
+#
+#     # xiaojuzi
+#     # 默认在一个机器上创建人脸 只上传一个人脸
+#     device_list = getDeviceByOpenid(openid)
+#
+#     if not device_list:
+#         return jsonify(ret_data(DEVICE_NOT_FIND))
+#
+#     for device in device_list:
+#
+#         face_obj = FaceInfo.query.get(int(face_id))
+#         # 上传图片
+#         log_str = ''
+#         f = request.files.get('upload')
+#         if f:
+#             extension = f.filename.split('.')[1].lower()
+#
+#             new_filename = str(int(time.time())) + '.' + extension
+#
+#             if extension not in app.config['ALLOWED_EXTENSIONS']:
+#                 return jsonify(ret_data(PARAMS_ERROR, data='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!'))
+#
+#             image_path = os.path.join(os.path.abspath('.'), 'static', 'face', new_filename)
+#
+#             f.save(image_path)
+#
+#             # 检验图片是否有人脸
+#             cut_face_base64 = cut_face_image(image_path, device.d_type)
+#
+#             if not cut_face_base64:
+#                 return jsonify(ret_data(FACE_NOT_FIND))
+#
+#             face_obj.head = 'face/' + new_filename
+#             face_obj.img_base64 = cut_face_base64
+#             log_str += 'head: %s' % new_filename
+#
+#             # 发送mqtt信息到设备，获取feature值
+#             user_insert(face_obj.id)
+#         if nickname:
+#             face_obj.nickname = nickname
+#             log_str += 'nickname: %s' % nickname
+#         if sex is not None:
+#             face_obj.sex = sex
+#             log_str += 'sex: %s' % sex
+#         db.session.commit()
+#
+#         logging.info('update by deviceid(%s) , face(%s): %s' % (device.deviceid,face_obj.id, log_str))
+#
+#         data = model_to_dict(face_obj)
+#         data = dict_fill_url(data, ['head'])
+#         data = dict_drop_field(data, ['img_base64', 'feature'])
+#
+#         return jsonify(ret_data(SUCCESS, data=data))
+
+# 以下三个方法上线后 放开删掉上述三个老版本方法 20240612
 @miniprogram_api.route('/face_info', methods=['POST'])
 @jwt_required()
 # @decorator_sign
