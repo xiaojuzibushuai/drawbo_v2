@@ -103,30 +103,7 @@ def iot_topic():
         #主题
         payload['topic'] = device.topic
         payload['clientid'] = device.clientid
-    else:
-        # 生成二维码
-        make_device_qrcode(deviceid)
-        # 新增一台设备
-        device = Device(
-            deviceid=deviceid,
-            clientid=clientid,
-            topic=topic,
-            is_auth=1,
-            d_type=int(d_type),
-            qrcode_suffix_data='device/%s.png' % deviceid
-        )
-        db.session.add(device)
-        db.session.commit()
 
-        # 初始化课程及关系
-        init_course(device.id)
-        payload['topic'] = topic
-        payload['clientid'] = clientid
-
-    # # xiaojuzi v2版本
-    if device.software_version == 'v2':
-
-        # 若没有设置名字则自动生成 xiaojuzi
         if not device.devicename:
             temp = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz1234567890'
             devicename = '画小宇'
@@ -134,87 +111,118 @@ def iot_topic():
                 devicename += random.choice(temp)
 
             device.devicename = devicename
+    else:
+        # 生成二维码
+        make_device_qrcode(deviceid)
+
+        temp = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz1234567890'
+        devicename = '画小宇'
+        for i in range(5):
+            devicename += random.choice(temp)
+
+        # 新增一台设备
+        device = Device(
+            deviceid=deviceid,
+            clientid=clientid,
+            topic=topic,
+            is_auth=1,
+            d_type=int(d_type),
+            qrcode_suffix_data='device/%s.png' % deviceid,
+            devicename=devicename,
+        )
+        db.session.add(device)
+
+
+        # 初始化课程及关系
+        init_course(device.id)
+        payload['topic'] = topic
+        payload['clientid'] = clientid
+
+    db.session.commit()
+
+    # # xiaojuzi v2版本 废弃版本判断 20240612 xiaojuzi
+    # if device.software_version == 'v2':
+
+    # 用户绑定设备 主动扫码（20231212 v2）
+    user = User.query.filter_by(openid=custom).first()
+    device = Device.query.filter_by(deviceid=deviceid).first()
+    if user:
+        # 新增用户设备信息表记录逻辑修改 xiaojuzi 20231214 v2 一个画小宇设备只允许一个人绑定 其他人绑定该设备只能分享添加
+        userDevice = User_Device.query.filter_by(deviceid=deviceid, status=0).first()
+        # 待完善 20231218
+        # device = User_Device.query.filter_by(userid=custom, deviceid=deviceid).first()
+        if not userDevice:
+
+            user_device = User_Device(
+                deviceid=deviceid,
+                userid=custom,
+                status=0,
+                status_update=datetime.now()
+            )
+            db.session.add(user_device)
             db.session.commit()
 
-        # 用户绑定设备 主动扫码（20231212 v2）
-        user = User.query.filter_by(openid=custom).first()
-        if user:
-            # 新增用户设备信息表记录逻辑修改 xiaojuzi 20231214 v2 一个画小宇设备只允许一个人绑定 其他人绑定该设备只能分享添加
-            userDevice = User_Device.query.filter_by(deviceid=deviceid,status=0).first()
-            # 待完善 20231218
-            # device = User_Device.query.filter_by(userid=custom, deviceid=deviceid).first()
-            if not userDevice:
+            # jwt_redis_blocklist.set(f"user_bind_device:{custom}",f"bind-{deviceid}-success",ex=timedelta(seconds=30))
+            temp = {
+                'deviceId': deviceid,
+                'deviceName': device.devicename,
+                'bindTime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'bindResult': 'success',
+                'bindUser': None
+            }
+            jwt_redis_blocklist.sadd(f"user_bind_device:{custom}", json.dumps(temp))
+            jwt_redis_blocklist.expire(f"user_bind_device:{custom}", timedelta(minutes=1))
 
-                user_device = User_Device(
-                    deviceid=deviceid,
-                    userid=custom,
-                    status=0,
-                    status_update=datetime.now()
-                )
-                db.session.add(user_device)
-                db.session.commit()
+            logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
 
-                # jwt_redis_blocklist.set(f"user_bind_device:{custom}",f"bind-{deviceid}-success",ex=timedelta(seconds=30))
+        else:
+            # 判断现在绑定的机器是否用户已经绑定过 若绑定过只进行联网
+            if not (userDevice.userid == custom):
+                bindUser = User.query.filter_by(openid=userDevice.userid).first()
+                result = bindUser.openid
+                if bindUser.register_phone:
+                    result = bindUser.register_phone
+                # jwt_redis_blocklist.hset(f"user_bind_device:{bindUser.openid}",deviceid,result)
+                # jwt_redis_blocklist.set(f"user_bind_device:{custom}",f"bind-{deviceid}-fail-{result}",ex=timedelta(seconds=30))
+
                 temp = {
-                    'deviceId' : deviceid,
-                    'deviceName' : device.devicename,
-                    'bindTime' : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    'bindResult' : 'success',
-                    'bindUser' : None
+                    'deviceId': deviceid,
+                    'deviceName': device.devicename,
+                    'bindTime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'bindResult': 'fail',
+                    'bindUser': result
                 }
-                jwt_redis_blocklist.sadd(f"user_bind_device:{custom}",json.dumps(temp))
+
+                jwt_redis_blocklist.sadd(f"user_bind_device:{custom}", json.dumps(temp))
                 jwt_redis_blocklist.expire(f"user_bind_device:{custom}", timedelta(minutes=1))
 
-                logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
+                logging.info('user(%s) bind device(%s) fail' % (custom, deviceid))
+            # return jsonify(iot_msg_manager(SUCCESS, f'该设备已经被手机号：{result}，的用户绑定过!'))
 
-            else:
-                #判断现在绑定的机器是否用户已经绑定过 若绑定过只进行联网
-                if not (userDevice.userid == custom):
-                    bindUser = User.query.filter_by(openid=userDevice.userid).first()
-                    result = bindUser.openid
-                    if bindUser.register_phone:
-                        result = bindUser.register_phone
-                    # jwt_redis_blocklist.hset(f"user_bind_device:{bindUser.openid}",deviceid,result)
-                    # jwt_redis_blocklist.set(f"user_bind_device:{custom}",f"bind-{deviceid}-fail-{result}",ex=timedelta(seconds=30))
+    # else:
+    #     logging.info(user)
 
-                    temp = {
-                        'deviceId' : deviceid,
-                        'deviceName' : device.devicename,
-                        'bindTime' : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        'bindResult' : 'fail',
-                        'bindUser' : result
-                    }
-
-                    jwt_redis_blocklist.sadd(f"user_bind_device:{custom}",json.dumps(temp))
-                    jwt_redis_blocklist.expire(f"user_bind_device:{custom}", timedelta(minutes=1))
-
-                    logging.info('user(%s) bind device(%s) fail' % (custom, deviceid))
-                # return jsonify(iot_msg_manager(SUCCESS, f'该设备已经被手机号：{result}，的用户绑定过!'))
-
-        # else:
-        #     logging.info(user)
-
-        #新逻辑将topic放到缓存 20240430 xiaojuzi
-        jwt_redis_blocklist.hset(f"iot_notify:{deviceid}", "topic", payload['topic'])
-
-        return jsonify(iot_msg_manager(SUCCESS, payload))
-
-    # 原来的v1版本号 xiaojuzi
-    else:
-        # 用户绑定设备
-        user = User.query.filter_by(openid=custom)
-
-        if user:
-            user.device = device.id
-            db.session.commit()
-            logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
-        else:
-            logging.info(user)
-
-        #新逻辑将topic放到缓存 20240430 xiaojuzi
-        jwt_redis_blocklist.hset(f"iot_notify:{deviceid}", "topic", payload['topic'])
+    # 新逻辑将topic放到缓存 20240430 xiaojuzi
+    jwt_redis_blocklist.hset(f"iot_notify:{deviceid}", "topic", payload['topic'])
 
     return jsonify(iot_msg_manager(SUCCESS, payload))
+
+    # # 原来的v1版本号 xiaojuzi
+    # else:
+    #     # 用户绑定设备
+    #     user = User.query.filter_by(openid=custom)
+    #
+    #     if user:
+    #         user.device = device.id
+    #         db.session.commit()
+    #         logging.info('user(%s) bind device(%s) success' % (custom, deviceid))
+    #     else:
+    #         logging.info(user)
+    #
+    #     #新逻辑将topic放到缓存 20240430 xiaojuzi
+    #     jwt_redis_blocklist.hset(f"iot_notify:{deviceid}", "topic", payload['topic'])
+
+    # return jsonify(iot_msg_manager(SUCCESS, payload))
 
 
 @iot_api.route('/status/notify', methods=['POST'])

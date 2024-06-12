@@ -38,7 +38,7 @@ from models.share_codes import ShareCodes
 from models.sms_send import SmsSend
 from models.user import User, FaceInfo, CustomerService
 from models.wakeword import Wakeword
-from script.mosquitto_product import user_insert, user_remove
+from script.mosquitto_product import user_insert, user_remove, send_message
 from sys_utils import db, app
 from models.course import Category, CourseIntroduce, ContactUS, Course, DeviceCourse, DeviceCategory
 from utils import sms_util
@@ -2534,7 +2534,7 @@ def device_switch():
 
             device.is_choose = True
 
-            db.session.commit()
+            # db.session.commit()
 
             logging.info('用户（%s）更新device.id（%s）' % (openid, device.id))
 
@@ -2545,7 +2545,8 @@ def device_switch():
         if device.deviceid not in deviceid_list:
 
             device.is_choose = False
-            db.session.commit()
+
+    db.session.commit()
 
     return jsonify(ret_data(SUCCESS,data=deviceid_list))
 
@@ -2608,6 +2609,63 @@ def multipleUpdateDeviceVolume():
         return jsonify(ret_data(SUCCESS, data='操作成功'))
 
     return jsonify(ret_data(result, data='操作失败'))
+
+@miniprogram_api.route('/updateDeviceVolumeBatch', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+#xiaojuzi v2   根据用户选择的设备 多设备批量调整音量 新接口需求 20240612
+def updateDeviceVolumeBatch():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    openid = current_user['openid']
+    volume = request.form.get('volume', None)
+
+    if not openid or not volume:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    if int(volume) > 100:
+        volume = 100
+    if int(volume) < 0:
+        volume = 0
+
+    device_list = getDeviceByOpenid(openid)
+
+    if not device_list:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    data = []
+
+    for device in device_list:
+
+        device.volume = volume
+
+        # 发送消息
+        message = {'operate': 2}
+        message['arg'] = volume
+        push_json = {'type': 4,
+                     'fromuser': openid,
+                     'deviceid': device.deviceid,
+                     'message': message
+                     }
+
+        logging.info(push_json)
+
+        errcode = send_message(push_json)
+
+        data.append({
+            'deviceid': device.deviceid,
+            'errcode': errcode
+        })
+
+    # 最后统一提交
+    db.session.commit()
+
+    # deviceid_list = [device.deviceid for device in device_list]
+
+    return jsonify(ret_data(SUCCESS, data=data))
 
 
 @miniprogram_api.route('/multipleUpdateDeviceDirection', methods=['POST'])
