@@ -184,7 +184,7 @@ def sign(form, rm=None):
 
 
 def ret_data(errcode, data=None):
-    if data:
+    if data or (data == 0):
         return {'errcode': errcode, 'msg': ERROR_CODE[errcode], 'data': data}
     else:
         return {'errcode': errcode, 'msg': ERROR_CODE[errcode]}

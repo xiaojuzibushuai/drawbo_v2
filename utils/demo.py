@@ -48,7 +48,9 @@ def test1():
 
 
 if __name__ == '__main__':
-    test1()
+    x = 10 + -5
+    print(x)
+    # test1()
 
 
 

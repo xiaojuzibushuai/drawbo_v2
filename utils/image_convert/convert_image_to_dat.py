@@ -8,7 +8,8 @@ import vtracer
 
 from config import inkscape_path
 from utils.image_convert.gcode_to_dat import convert_gcode_to_dat
-from utils.image_convert.png_to_svg import cv_png_to_svg, cv_camera_png_to_svg, convert_bitmap_to_svg
+from utils.image_convert.png_to_svg import cv_png_to_svg, cv_camera_png_to_svg, convert_bitmap_to_svg, \
+    adjust_svg_position
 from utils.image_convert.unicorn import convert_svg_to_gcode
 
 import xml.etree.ElementTree as ET
@@ -127,6 +128,19 @@ def convert_simple_image_to_dat(png_file_path,svg_file_path,gcode_file_path,dat_
     # 3、Gcode文件转Dat文件
     convert_gcode_to_dat(gcode_file_path, dat_file_path)
 
+
+
+# xiaojuzi 20240614  调整svg文件位置 并生成dat文件  汉字专用接口
+def adjustSvgPositionToDat(input_svg,output_gcode,output_dat, x_offset, y_offset):
+    #1、调整svg文件位置
+    adjust_svg_position(input_svg,input_svg,x_offset,y_offset)
+    #2、SVG文件转gcode文件
+    convert_svg_to_gcode(input_svg, output_gcode)
+    #3、Gcode文件转Dat文件
+    convert_gcode_to_dat(output_gcode, output_dat)
+
+
+
 def look_shape(a: Iterable) -> Tuple:
     # for debug
     return np.array(a).shape
@@ -234,14 +248,14 @@ def removeXml(input):
 
 
 if __name__ == "__main__":
-    png_file_path = 'ceshi3.jpg'
-    svg_file_path = 'ceshi3.svg'
-    gcode_file_path = 'ceshi3.gcode'
-    dat_file_path = 'ceshi3.dat'
+    png_file_path = 'test1.jpg'
+    svg_file_path = 'test2.svg'
+    gcode_file_path = 'test2.gcode'
+    dat_file_path = 'test2.dat'
 
-
+    adjustSvgPositionToDat(svg_file_path, gcode_file_path, dat_file_path, 30, 0)
     # convert_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
 
     # vtracer.convert_image_to_svg_py(png_file_path, svg_file_path, colormode='binary')
     # convert_simple_image_to_dat(png_file_path, svg_file_path, gcode_file_path, dat_file_path)
-    test_convert_image_to_dat(1,png_file_path, svg_file_path, gcode_file_path, dat_file_path)
+    # test_convert_image_to_dat(1,png_file_path, svg_file_path, gcode_file_path, dat_file_path)

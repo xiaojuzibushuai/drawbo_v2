@@ -139,7 +139,7 @@ def resize_images(file_path, target_resolution):
     # 保存调整后的图片
     canvas.save(file_path)
 
-def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,image_width,image_height, unit='px'):
+def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,image_width,image_height,unit='px',offset_x=15,offset_y=-30):
     # 解析输入的 SVG 文件
     tree = etree.parse(input_svg)
     root = tree.getroot()
@@ -167,8 +167,8 @@ def set_svg_document_properties(input_svg, output_svg, svg_width, svg_height,ima
     # print(new_image_width,new_image_height)
 
     #方框区域调试此偏移 20240527 xiaojuzi
-    new_x = ((svg_width - new_image_width) / 2 ) - 15
-    new_y = ((svg_height - new_image_height) / 2 ) - 30
+    new_x = ((svg_width - new_image_width) / 2) + int(offset_x)
+    new_y = ((svg_height - new_image_height) / 2) + int(offset_y)
     # print(new_x,new_y)
 
     # 修改 image 元素的 width 和 height 属性为
@@ -245,9 +245,14 @@ def convert_bitmap_to_svg(input_image_path, output_svg_path, rotation,max_size=5
     # resized_width, resized_height = image.size
     # print(resized_width,resized_height)
 
-    # 使用 ImageMagick 将灰度图像转换为 PNM 格式
+    # 使用 ImageMagick 将灰度图像转换为 PNM 格式  例：左上角 下是-Y 右是-X  坐标为xy 这是为了调整坐标位置 人像建议不用20240614
+    # command = f"magick {resized_image_path} -resize 50% -quality 100 -gravity northwest -background white -extent 210X297-0-50 {resized_image_path}"
+    # subprocess.run(command, check=True)
+
     command = f"magick {resized_image_path} {intermediate_pnm_path}"
     subprocess.run(command, check=True)
+
+
     '''
     --width 150pt --height 240pt 设置图片大小 有 pt cm im
     --tight：删除输入图像周围的空白。
@@ -264,15 +269,17 @@ def convert_bitmap_to_svg(input_image_path, output_svg_path, rotation,max_size=5
      -B，--bottommargin dim      - 下边距
     --color 和 --fillcolor：设置前景色和填充色，以确保输出的 SVG 看起来更逼真。
     '''
-    command1 = f"potrace {intermediate_pnm_path} -b svg -o {output_svg_path} --pagesize 250mmx353mm --tight -a 1 -O 0.2 --group -M 50mm -L 50mm -R 50mm -T 50mm -B 50mm --color #000000 "
+    # command1 = f"potrace {intermediate_pnm_path} -b svg -o {output_svg_path} --pagesize 250mmx353mm --tight -a 1 -O 0.2 --group -M 50mm -L 50mm -R 50mm -T 50mm -B 50mm --color #000000 "
+    # command1 = f"potrace {intermediate_pnm_path} -b svg -o {output_svg_path} --pagesize a4 --width 100mm --height 100mm --scale 30 --tight -a 1 -O 0.2 --group --color #000000 "
+    # 使用 Potrace 将 PNM 格式转换为 SVG 格式
+    command1 = f"potrace {intermediate_pnm_path} -b svg -o {output_svg_path}"
+
     # 使用 Potrace 将 PNM 格式转换为 SVG 格式
     subprocess.run(command1, check=True)
 
     # 删除中间文件
     os.remove(intermediate_pnm_path)
     os.remove(resized_image_path)
-
-
 
 
 # 20240102 xiaojuzi v2 修改 旋转角度
@@ -312,7 +319,7 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
         [inkscape_path,temp_png_file_path,f"--export-filename={svg_file_path}"])
 
     # # # 设置 SVG 文件的文档属性
-    set_svg_document_properties(svg_file_path, svg_file_path, 250, 353, 100, 100, "mm")
+    set_svg_document_properties(svg_file_path, svg_file_path, 210, 297, 64, 64,"mm",0,0)
 
     subprocess.run(
         [inkscape_path, "--export-type=png", "-o", temp_png_file_path, "--export-background=#FFFFFF", svg_file_path])
@@ -320,17 +327,85 @@ def cv_png_to_svg(rotate,png_file_path, svg_file_path):
     vtracer.convert_image_to_svg_py(temp_png_file_path, svg_file_path, colormode='binary')
 
 
+#
+def adjust_svg_position(input_svg, output_svg, x_offset, y_offset):
+    # 解析输入的 SVG 文件
+    tree = etree.parse(input_svg)
+    root = tree.getroot()
+
+    # 获取命名空间
+    ns = {'svg': 'http://www.w3.org/2000/svg'}
 
 
+    # 查找所有路径
+    for elem in root.findall('.//svg:path', ns):
+        transform = elem.get('transform', '')
+        translate = f'translate({x_offset},{y_offset})'
+        if transform:
+            transform += ' ' + translate
+            # print(transform)
+        else:
+            transform = translate
+            # print(transform)
+        elem.set('transform', transform)
+    # # 查找所有路径
+    # for elem in root.findall('.//svg:path', ns):
+    #     transform = elem.get('transform', '')
+    #     print(transform)
+    #     if 'translate' in transform:
+    #         # 解析 translate 的值
+    #         translate = transform.split('(')[1].split(')')[0].split(',')
+    #         old_x, old_y = float(translate[0]), float(translate[1])
+    #         new_x = old_x + x_offset
+    #         new_y = old_y + y_offset
+    #         new_translate = f'translate({new_x},{new_y})'
+    #         # 替换原有的 transform 属性值
+    #         new_transform = transform.replace(f'translate({old_x},{old_y})', new_translate)
+    #         elem.set('transform', new_transform)
+
+    # 保存修改后的 SVG 文件
+    tree.write(output_svg, pretty_print=False, xml_declaration=False, encoding='UTF-8')
+
+def test():
+    svg_file_path ='test.svg'
+    out_svg_file_path = 'test2.svg'
+    out_png_file_path = 'test1.png'
+    png_path = 'test.png'
+    temp_png = 'test_temp.png'
+    intermediate_pnm_path = 'test_temp.pnm'
+
+    out_svg_file_path1 = 'test22.svg'
+
+    #方案一 测试
+    # x_offset = 302.789
+    # y_offset = 488.816
+
+    adjust_svg_position(out_svg_file_path, out_svg_file_path1, 30, 0)
+
+    #方案二 测试
+    # 将SVG文件转换为PNG文件
+    # subprocess.run([inkscape_path, "--export-type=png", "-o", png_path, "--export-background=#FFFFFF", svg_file_path])
+
+    # XY -X 是往右 -Y是往下
+    # command = f"magick {png_path} -gravity center -background white -extent -0-100 {temp_png}"
+    # subprocess.run(command, check=True)
+
+    # command = f"magick {temp_png} {intermediate_pnm_path}"
+    # subprocess.run(command, check=True)
+    # # 使用 Potrace 将 PNM 格式转换为 SVG 格式
+    # command1 = f"potrace {intermediate_pnm_path} -b svg -o {out_svg_file_path}"
+    # subprocess.run(command1, check=True)
 
 if __name__ == "__main__":
     # png_dir = os.path.join(os.getcwd(),"utils","image_convert","png","hhh.png")
 
-    png_file_path = '111.jpg'
+    png_file_path = 'ceshi3.jpg'
 
-    svg_file_path = '111.svg'
+    svg_file_path = 'ceshi3.svg'
+    test()
 
-    convert_bitmap_to_svg(png_file_path,svg_file_path,0)
+
+    # convert_bitmap_to_svg(png_file_path,svg_file_path,0)
     # temp_png_file_path = os.path.dirname(os.path.abspath(png_file_path)) +"_temp.png"
 
     # cv_camera_png_to_svg(png_file_path, svg_file_path)
