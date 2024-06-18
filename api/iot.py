@@ -448,8 +448,11 @@ def iot_send():
     if int(i_type) == 8:
         user_id = message['userid']
         feature = message['feature']
-        FaceInfo.query.filter_by(user_id=user_id).update({'feature': feature})
-        db.session.commit()
+        fi = FaceInfo.query.filter_by(user_id=user_id,feature=feature).first()
+        if not fi:
+            return jsonify({'code': 1, 'payload': {'url': ''}})
+        # FaceInfo.query.filter_by(user_id=user_id).update({'feature': feature})
+        # db.session.commit()
     # 上报识别人数是否超数 暂时不检测人脸数量 xiaojuzi 2023923  修改为检测人脸数量 20240607 xiaojuzi
     if int(i_type) == 9:
         device = Device.query.filter_by(deviceid=deviceid).first()
@@ -617,15 +620,16 @@ def init_course(device_id: int):
     #         )
     #         db.session.add(device_course)
             # db.session.commit()
-    # category_list = Category.query.all()
-    # for category in category_list:
-    #     dc = DeviceCategory.query.filter_by(device_id=device_id, category_id=category.id).first()
-    #     if not dc:
-    #         device_category = DeviceCategory(
-    #             category_id=category.id,
-    #             device_id=device_id
-    #         )
-    #         db.session.add(device_category)
+    category_list = Category.query.all()
+    for category in category_list:
+        dc = DeviceCategory.query.filter_by(device_id=device_id, category_id=category.id).first()
+        if not dc:
+            device_category = DeviceCategory(
+                category_id=category.id,
+                device_id=device_id,
+                lock=True
+            )
+            db.session.add(device_category)
             # db.session.commit()
     #统一提交
     db.session.commit()

@@ -2820,6 +2820,7 @@ def category():
 
     return jsonify(ret_data(SUCCESS, data=category_list))
 
+
 #下述为老逻辑SQL
 # #     SELECT
 # #     category.id,
@@ -2849,6 +2850,66 @@ def category():
     # new_category_all_list = [category_list for innerlist in category_all_list for category_list in innerlist]
     #方式二 itertools.chain方法
     # new_category_all_list = list(itertools.chain(*category_all_list))
+
+@miniprogram_api.route('/checkCategoryIsEnabled', methods=['POST'])
+@jwt_required()
+def checkCategoryIsEnabled():
+    """
+    进入课程类别条件判断  v2 xiaojuzi 20240618
+    :return: json
+    """
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    categoryId = request.form.get('categoryId', None)
+    if not categoryId:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    openid = current_user['openid']
+
+    # 创建查询参数
+    query_params = [Device.id,Device.deviceid,Device.devicename,Device.wakeword,Device.is_master,DeviceCategory.lock]
+
+    # 查询条件
+    query_filter = [Device.deviceid.in_(
+        db.session.query(User_Device.deviceid).filter(User_Device.userid == openid,User_Device.is_choose == 1))]
+
+    query_filter.append(DeviceCategory.category_id == categoryId)
+
+    # 进行关联查询
+    category_query = db.session.query(*query_params).join(
+        DeviceCategory, DeviceCategory.device_id == Device.id
+    ).filter(*query_filter)
+
+    # 执行查询
+    results = category_query.all()
+
+    data = []
+    if results:
+        device_list = model_to_dict(results)
+
+        for d in device_list:
+            if d['lock']:
+                data.append({
+                    'id': d['id'],
+                    'IsDeviceEnter': True,
+                    'deviceId': d['deviceid'],
+                    'deviceName': d['devicename'],
+                    'wakeword': d['wakeword'],
+                    'isMaster': d['is_master']
+                })
+            else:
+                ud = User_Device.query.filter_by(userid=openid, deviceid=d['deviceid']).first()
+                if not ud:
+                    continue
+                ud.is_choose = False
+
+        db.session.commit()
+
+        return jsonify(ret_data(SUCCESS, data=data))
+    else:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
 
 
 @miniprogram_api.route('/course', methods=['POST'])

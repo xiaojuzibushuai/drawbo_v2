@@ -55,7 +55,8 @@ else:
     HOST = 'http://172.16.0.230:5000'
 
     # HOSTNAME = 'LOCALHOST'
-    HOSTNAME = '101.201.75.83:3306'
+    HOSTNAME = '121.89.199.156:31228'
+    # HOSTNAME = '101.201.75.83:3306'
     DATABASE = 'drawbo_v2'
     USERNAME = 'root'
     # PASSWORD = '123456'
