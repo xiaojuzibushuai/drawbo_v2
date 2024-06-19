@@ -2533,6 +2533,7 @@ def device_switch():
                 return jsonify(ret_data(DEVICE_NOT_FIND))
 
             device.is_choose = True
+            device.status_update = datetime.now()
 
             # db.session.commit()
 
@@ -2545,6 +2546,7 @@ def device_switch():
         if device.deviceid not in deviceid_list:
 
             device.is_choose = False
+            device.status_update = datetime.now()
 
     db.session.commit()
 
@@ -2869,7 +2871,8 @@ def checkCategoryIsEnabled():
     openid = current_user['openid']
 
     # 创建查询参数
-    query_params = [Device.id,Device.deviceid,Device.devicename,Device.wakeword,Device.is_master,DeviceCategory.lock]
+    query_params = [Device.id,Device.deviceid,Device.devicename,Device.wakeword,Device.is_master,DeviceCategory.lock,
+                    DeviceCategory.validtime_start,DeviceCategory.validtime_end,DeviceCategory.valid_days]
 
     # 查询条件
     query_filter = [Device.deviceid.in_(
@@ -2890,20 +2893,24 @@ def checkCategoryIsEnabled():
         device_list = model_to_dict(results)
 
         for d in device_list:
-            if d['lock']:
+            if not d['lock']:
                 data.append({
                     'id': d['id'],
                     'IsDeviceEnter': True,
                     'deviceId': d['deviceid'],
                     'deviceName': d['devicename'],
                     'wakeword': d['wakeword'],
-                    'isMaster': d['is_master']
+                    'isMaster': d['is_master'],
+                    'validtime_start': d['validtime_start'],
+                    'validtime_end': d['validtime_end'],
+                    'valid_days': d['valid_days']
                 })
             else:
                 ud = User_Device.query.filter_by(userid=openid, deviceid=d['deviceid']).first()
                 if not ud:
                     continue
                 ud.is_choose = False
+                ud.status_update = datetime.now()
 
         db.session.commit()
 

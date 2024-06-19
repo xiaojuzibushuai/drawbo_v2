@@ -101,8 +101,14 @@ class DeviceCategory(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
     device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
     lock = db.Column(db.Boolean, default=True)                         # 是否锁住
+
+    validtime_start = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    validtime_end = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    valid_days = db.Column(db.Integer, default=0)
+
     category = db.relationship('Category', backref='device_category')
     device = db.relationship('Device', backref='device_category')
+
 
     def __str__(self):
         return self.id

@@ -1,7 +1,11 @@
+from datetime import datetime
+
+from sqlalchemy import text
+
 from api.auth import auth_api
 from api.subscribe_mqtt import mqtt_sub_api
 from api.web_back import web_back_api
-from sys_utils import app, db
+from sys_utils import app, db, scheduler
 import os
 from logging.config import dictConfig
 from flask_script import Manager, Command
@@ -58,6 +62,8 @@ security = Security(app, user_data_store)
 
 class Run(Command):
     def run(self):
+        #启动定时任务 xiaojuzi 20240619
+        scheduler.start()
         #test2
         app.run(host='0.0.0.0',port=5000, debug=True)
         #线上
@@ -109,7 +115,41 @@ def image_upload():
     if extension not in app.config['ALLOWED_EXTENSIONS']:
         return upload_fail(message='只支持上传后缀为[jpg, gif, png, jpeg]的图片格式!')
     f.save(os.path.join(os.path.abspath('.'), 'static', 'upload', f.filename))
-    return upload_success(url='/upload_file/' + f.filename)                          # return upload_success call
+    return upload_success(url='/upload_file/' + f.filename)
+
+
+@scheduler.task('interval', id='deviceCategoryCheck', seconds=30, misfire_grace_time=900)
+def deviceCategoryCheck():
+    '''
+    scheduler.add_job(id='task_id', func=some_task, trigger='interval', seconds=10)
+    scheduler.modify_job('task_id', args=[arg1, arg2], trigger='cron', day_of_week='mon-fri')
+    scheduler.remove_job('task_id')
+    scheduler.get_job('task_id')
+    scheduler.shutdown()
+    '''
+
+    logging.info("deviceCategoryCheck定时任务执行中...")
+
+    now_time = datetime.now()
+    # print(now_time)
+
+    try:
+        with app.app_context():
+
+            sql_statement = text("UPDATE device_category d SET d.lock = True WHERE d.validtime_end <  :now_time; ")
+
+            db.session.execute(sql_statement, {"now_time": now_time})
+
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logging.error("deviceCategoryCheck定时任务执行失败...:%s",e)
+        # print(e)
+
+    logging.info("deviceCategoryCheck定时任务执行完成...")
+
+
+# return upload_success call
 
 
 # blueprint register

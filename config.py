@@ -55,8 +55,8 @@ else:
     HOST = 'http://172.16.0.230:5000'
 
     # HOSTNAME = 'LOCALHOST'
-    HOSTNAME = '121.89.199.156:31228'
-    # HOSTNAME = '101.201.75.83:3306'
+    # HOSTNAME = '121.89.199.156:31228'
+    HOSTNAME = '101.201.75.83:3306'
     DATABASE = 'drawbo_v2'
     USERNAME = 'root'
     # PASSWORD = '123456'
@@ -130,6 +130,13 @@ SMS_API_KEY = 'OK4QhEunXLN5wmMwyfNVmNQG6BzXMysu'
 SMS_EXPIRE_TIME = 120
 #设备在线判断时间
 DEVICE_EXPIRE_TIME = 20
+
+#定时任务配置 20240619 xiaojuz
+SCHEDULER_API_ENABLED = True # 启用API端点，便于监控和管理
+SCHEDULER_JOB_DEFAULTS = {
+    'coalesce': False, # 防止相同作业的堆积执行
+    'max_instances': 1,  # 限制同一作业同时运行的最大实例数
+}
 
 #认证授权配置 20231204 xiaojuzi timedelta(hours=1)
 JWT_SECRET_KEY = 'FrZrkpM8Xwect1f2E1KfAB2bfEA9qYcE'

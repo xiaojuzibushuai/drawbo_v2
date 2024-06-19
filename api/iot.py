@@ -627,7 +627,10 @@ def init_course(device_id: int):
             device_category = DeviceCategory(
                 category_id=category.id,
                 device_id=device_id,
-                lock=True
+                lock=True,
+                validtime_start=datetime.now(),
+                validtime_end=datetime.now(),
+                valid_days=0
             )
             db.session.add(device_category)
             # db.session.commit()
