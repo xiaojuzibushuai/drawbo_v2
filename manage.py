@@ -118,7 +118,8 @@ def image_upload():
     return upload_success(url='/upload_file/' + f.filename)
 
 
-@scheduler.task('interval', id='deviceCategoryCheck', seconds=30, misfire_grace_time=900)
+# @scheduler.task('interval', id='deviceCategoryCheck', seconds=30, misfire_grace_time=900)
+@scheduler.task('cron', id='deviceCategoryCheck', day_of_week='0-6', hour=0, minute=0)
 def deviceCategoryCheck():
     '''
     scheduler.add_job(id='task_id', func=some_task, trigger='interval', seconds=10)
