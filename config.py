@@ -36,6 +36,8 @@ if os.getenv('drawbo'):
     #设置最大连接数 xiaojuzi
     SQLALCHEMY_POOL_SIZE = 256
 
+    SQLALCHEMY_POOL_RECYCLE = 3600
+
     #设置连接池实现类 20231109 xiaojuzi v2
     SQLALCHEMY_POOL_CLASS = QueuePool
     SQLALCHEMY_POOL_TIMEOUT = 60  # 连接超时时间为60秒
@@ -44,9 +46,12 @@ if os.getenv('drawbo'):
     #设置数据库的SQL模式 xiaojuzi
 
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'connect_args': {'sql_mode': 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'}
+        'connect_args': {
+            'pool_recycle': 3600,  # 设置连接的回收时间为3600秒
+            'sql_mode': 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'}
     }
     SQLALCHEMY_TRACK_MODIFICATIONS = True
+
 
     ADMIN_HOST = 'http://101.201.75.83:8081'
 
@@ -79,12 +84,16 @@ else:
     )
 
     SQLALCHEMY_POOL_SIZE = 256
+
+    SQLALCHEMY_POOL_RECYCLE = 3600
+
     #设置连接池实现类 20231109 xiaojuzi v2
     SQLALCHEMY_POOL_CLASS = QueuePool
     SQLALCHEMY_POOL_TIMEOUT = 30  # 连接超时时间为30秒
     SQLALCHEMY_POOL_OVERFLOW = 20 #最大溢出数20
 
     SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_recycle': 3600,  # 设置连接的回收时间为3600秒
         'connect_args': {'sql_mode': 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'},
         # 'echo': True
     }
