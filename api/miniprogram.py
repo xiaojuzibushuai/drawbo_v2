@@ -27,8 +27,10 @@ from api.mqtt import mqtt_push_wakeword_data, mqttPushAnswerToKeyBoard, get_mqtt
 
 from config import HOST, APPSECRET, APPID, SignName, LoginTemplateCode, JWT_ACCESS_TOKEN_EXPIRES, SMS_EXPIRE_TIME, \
     DEVICE_EXPIRE_TIME, inkscape_path
+from models.AuditUser import AuditUser
 from models.DeviceCount import DeviceCount
 from models.FaceDevice import FaceDevice
+from models.Role import Role
 from models.course_question import CourseQuestion
 from models.device import Device
 from models.logout_user import LogoutUser
@@ -262,6 +264,8 @@ def register():
 
     openid = request.form.get('openid', None)
 
+    role_id = request.form.get('role_id', None)
+
     if not code or not openid:
         return jsonify(ret_data(PARAMS_ERROR))
 
@@ -340,29 +344,47 @@ def register():
                        'refresh_token': refresh_token,
                     }))
                 else:
-                    user2 = User(openid=openid,
-                                 register_phone=register_phone,
-                                 uptime=datetime.now(),
-                                 login_count=1,
-                                 nickname=generate_nickname(),
-                                 ip=getUserIp(),
-                                 )
-                    db.session.add(user2)
-                    user3 = model_to_dict(user2)
-                    db.session.commit()
+                    if (role_id == '1') or (not role_id):
 
-                    # 生成令牌 20231204 xiaojuzi v2
+                        user2 = User(openid=openid,
+                                     register_phone=register_phone,
+                                     uptime=datetime.now(),
+                                     login_count=1,
+                                     nickname=generate_nickname(),
+                                     ip=getUserIp(),
+                                     role_id=1,
+                                     )
+                        db.session.add(user2)
+                        user3 = model_to_dict(user2)
+                        db.session.commit()
 
-                    access_token = create_access_token(identity=user3)
-                    refresh_token = create_refresh_token(identity=user3)
+                        # 生成令牌 20231204 xiaojuzi v2
 
-                    logging.info('new user register_phone:%s, openid:%s' % (register_phone, openid))
+                        access_token = create_access_token(identity=user3)
+                        refresh_token = create_refresh_token(identity=user3)
 
-                    return jsonify(ret_data(SUCCESS, data={
-                        'message': '注册成功！',
-                        'access_token': access_token,
-                      'refresh_token': refresh_token,
-                    }))
+                        logging.info('new user register_phone:%s, openid:%s' % (register_phone, openid))
+
+                        return jsonify(ret_data(SUCCESS, data={
+                            'message': '注册成功！',
+                            'access_token': access_token,
+                          'refresh_token': refresh_token,
+                        }))
+                    else:
+                        au = AuditUser.query.filter(or_(AuditUser.openid == openid, AuditUser.phone == register_phone)).first()
+                        if au:
+                            return jsonify(ret_data(REGISTER_AUDIT_USER_SUCCEED, data='账号已经注册申请成功，请勿重复申请，请等待审核！'))
+
+                        audit_user = AuditUser(openid=openid,
+                                           register_phone=register_phone,
+                                           uptime=datetime.now(),
+                                           nickname=generate_nickname(),
+                                           ip=getUserIp(),
+                                           role_id=2,
+                                           )
+                        db.session.add(audit_user)
+                        db.session.commit()
+                        return jsonify(ret_data(REGISTER_AUDIT_USER_SUCCEED, data='申请注册成功，审核通过后将通过短信进行提醒！'))
         else:
             return jsonify(ret_data(SMS_CODE_ERROR))
     else:
@@ -391,6 +413,11 @@ def getUserInfo():
     if not user:
         return jsonify(ret_data(PARAMS_ERROR))
 
+    role = Role.query.filter_by(id=user.role_id).first()
+
+    if not role:
+        return jsonify(ret_data(PARAMS_ERROR))
+
     data = model_to_dict(user)
     #20231215 xiaojuzi v2
     data = dict_fill_url(data, ['avatar'])
@@ -399,6 +426,7 @@ def getUserInfo():
     location = get_location_by_ip(user.ip)
 
     data['location'] = location
+    data['role'] = role.role_name
 
     return jsonify(ret_data(SUCCESS, data=data))
 
@@ -3646,6 +3674,10 @@ def create_face():
     sex = request.form.get('sex', 0)
     sex = 0 if sex in ['男', '0', 0] else 1
     device_id = request.form.get('id', None)
+    phone = request.form.get('phone', None)
+
+    if not phone:
+        return jsonify(ret_data(PARAMS_ERROR))
 
     use_count = request.form.get('use_count', 0)
 
@@ -3704,7 +3736,8 @@ def create_face():
         sex=sex,
         device=device_id,
         head='face/' + new_filename,
-        img_base64=cut_face_base64
+        img_base64=cut_face_base64,
+        phone = phone
     )
     db.session.add(face_obj)
     #刷新会话

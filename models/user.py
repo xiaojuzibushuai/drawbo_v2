@@ -26,6 +26,8 @@ class User(db.Model):
     uptime = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now) #最近一次登录时间
     is_del = db.Column(db.Integer, nullable=False, default=0)       # 删除
 
+    role_id = db.Column(db.Integer, nullable=False, default=1)
+
     # 不使用 xiaojuzi
     device = db.Column(db.Integer, db.ForeignKey('device.id'))                       # 设备绑定
     device_info = db.relationship('Device', backref='user')
@@ -47,6 +49,7 @@ class FaceInfo(db.Model):
     img_base64 = db.Column(db.Text, nullable=True)                                  # 经过校验合法的人脸头像
     device = db.Column(db.Integer, db.ForeignKey('device.id'))                      # 设备
     uptime = db.Column(db.DateTime, default=datetime.now)
+    phone = db.Column(db.String(15), default='')
     device_info = db.relationship('Device', backref='face_info')
 
     def __str__(self):
