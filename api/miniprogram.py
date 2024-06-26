@@ -30,6 +30,7 @@ from config import HOST, APPSECRET, APPID, SignName, LoginTemplateCode, JWT_ACCE
 from models.AuditUser import AuditUser
 from models.DeviceCount import DeviceCount
 from models.FaceDevice import FaceDevice
+from models.Goods import Goods
 from models.Role import Role
 from models.course_question import CourseQuestion
 from models.device import Device
@@ -3524,6 +3525,54 @@ def deleteFaceDetail():
 #         data = dict_drop_field(data, ['img_base64', 'feature'])
 #
 #         return jsonify(ret_data(SUCCESS, data=data))
+
+@miniprogram_api.route('/getAllUserDeviceFaceInfo', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+# 获取用户设备所有人脸信息  20240626 xiaojuzi
+def getAllUserDeviceFaceInfo():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    openid = current_user['openid']
+
+    device_list = getDeviceByOpenid(openid)
+
+    if not device_list:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    data = []
+    for d in device_list:
+        fd = FaceInfo.query.filter_by(device=d.id).all()
+        if not fd:
+            continue
+        for f in fd:
+            data1 = model_to_dict(f)
+            data1 = dict_fill_url(data, ['head'])
+            data1 = dict_drop_field(data, ['img_base64', 'feature'])
+            data.append(data1)
+
+    return jsonify(ret_data(SUCCESS, data=data))
+
+
+@miniprogram_api.route('/getAllGoods', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+# 获取所有商品信息列表  20240626 xiaojuzi
+def getAllGoods():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    goodList = Goods.query.all()
+
+    data = model_to_dict(goodList)
+
+    return jsonify(ret_data(SUCCESS, data=data))
+
 
 # 以下三个方法上线后 放开删掉上述三个老版本方法 20240612
 @miniprogram_api.route('/face_info', methods=['POST'])
