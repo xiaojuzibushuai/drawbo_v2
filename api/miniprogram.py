@@ -3550,12 +3550,45 @@ def getAllUserDeviceFaceInfo():
             continue
         for f in fd:
             data1 = model_to_dict(f)
-            data1 = dict_fill_url(data, ['head'])
-            data1 = dict_drop_field(data, ['img_base64', 'feature'])
+            data1 = dict_fill_url(data1, ['head'])
+            data1 = dict_drop_field(data1, ['img_base64', 'feature'])
             data.append(data1)
 
     return jsonify(ret_data(SUCCESS, data=data))
 
+
+@miniprogram_api.route('/getGoodsByIds', methods=['POST'])
+@jwt_required()
+# @decorator_sign
+# 获取商品特定信息列表根据id  20240626 xiaojuzi
+def getGoodsByIds():
+
+    current_user = get_jwt_identity()
+    if not current_user:
+        return jsonify(ret_data(UNAUTHORIZED_ACCESS))
+
+    goodIds = request.form.get('goodIds')
+
+    if goodIds:
+        goodIds = json.loads(goodIds)
+        data = []
+        for goodId in goodIds:
+            good = Goods.query.get(goodId)
+            if good:
+                data.append({
+                    'id': good.id,
+                    'good_image': good.good_image,
+                    'good_name': good.good_name,
+                    'good_info': good.good_info,
+                    'keyword': good.keyword,
+                    'cate_id': good.cate_id,
+                    'price': good.price,
+                    'goods_type': good.goods_type,
+                })
+
+        return jsonify(ret_data(SUCCESS, data=data))
+
+    return jsonify(ret_data(PARAMS_ERROR))
 
 @miniprogram_api.route('/getAllGoods', methods=['POST'])
 @jwt_required()
