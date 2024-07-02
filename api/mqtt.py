@@ -20,8 +20,9 @@ from models.key_board_data import KeyBoardData
 from models.parent_game import ParentGame
 from models.user import User
 from models.user_device import User_Device
-from script.mosquitto_product import send_message, send_external_message
+from script.mosquitto_product import send_message, send_external_message, send_message_to_topic
 from sys_utils import db
+from utils.ImageUtil import generateH5WordGameDat
 from utils.image_convert.convert_image_to_dat import convert_image_to_dat, convert_camera_image_to_dat, \
     test_convert_image_to_dat
 from utils.tools import ret_data, decorator_sign, create_noncestr, paginate_data
@@ -297,6 +298,159 @@ def mqtt_push_data() -> object:
     db.session.commit()
 
     return jsonify(ret_data(SUCCESS, data=data))
+
+
+
+
+#h5数学计算小游戏 20240701 xiaojuzi
+@mqtt_api.route('/h5/mathGames/sendEquation', methods=['POST'])
+# @jwt_required()
+# @decorator_sign
+def sendEquation() -> object:
+
+    from api.miniprogram import getDeviceListBySceneId
+
+    #格式如: 前端要求一次只发一题[1,+,1,=,2]
+    data = request.form.get('data')
+    #题号
+    questionNum = request.form.get('questionNum')
+    #总题数
+    count = request.form.get('count')
+    #对发送游戏的场景id接收 格式 [1,2]
+    sceneid = request.form.get('sceneid')
+
+    if not data or not questionNum or not count or not sceneid:
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    if (int(questionNum) > int(count)) or (int(questionNum) <= 1):
+        return jsonify(ret_data(PARAMS_ERROR))
+
+    sceneid = json.loads(sceneid)
+
+    device_list = getDeviceListBySceneId(sceneid)
+
+    if not device_list:
+        return jsonify(ret_data(DEVICE_NOT_FIND))
+
+    #生成保存目录
+    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'static').replace('\\', '/')
+
+    file_name = create_noncestr(8)
+
+    save_file_floder = static_folder + f'/h5/equation/{file_name}'
+
+    if not os.path.exists(save_file_floder):
+        os.makedirs(save_file_floder)
+
+    # 准备参数
+    image_width = 1052
+    image_height = 744
+    offsetX = 0
+    offsetY = 0
+
+    quoted_data = data.replace('[', '["').replace(']', '"]').replace(',', '","')
+    data = json.loads(quoted_data)
+    expr_with_spaces = [str(item) + (' ' if i < len(data) - 1 else '') for i, item in enumerate(data)]
+    final_expr = ''.join(expr_with_spaces)
+    print(final_expr)
+
+    offsetY = calculate_offset(image_height,count,questionNum)
+    print(offsetY)
+
+    #生成游戏文件
+    try:
+        generateH5WordGameDat(final_expr,save_file_floder,file_name,image_width,image_height,offsetX,offsetY)
+    except Exception as e:
+        logging.error(e)
+        return jsonify(ret_data(SYSTEM_ERROR))
+
+    success_send = 0
+    errc_send = 0
+    send_result = {
+        "success_send": 0,
+        "errc_send": 0,
+        "send_devices_count": 0,
+    }
+    # 发送消息
+    for device in device_list:
+
+        push_json = {
+            'type': 2,
+            'deviceid': device.deviceid,
+            'fromuser': "",
+            'message': {
+                'arg': file_name,
+                'url': HOST + f'/h5/equation/{file_name}'
+            }
+        }
+
+        logging.info(push_json)
+
+        # 20240430 xiaojuzi 新逻辑实现
+        topic = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}","topic")
+        status = jwt_redis_blocklist.hget(f"iot_notify:{device.deviceid}","updateStatus")
+
+        #补偿机制
+        if not topic or not status:
+            #获取该设备信息
+            devices = Device.query.filter_by(deviceid=device.deviceid).first()
+            if not devices:
+                errc_send += 1
+                continue
+            # 取出topic和当前设备状态
+            topic = devices.topic
+            status = devices.status
+
+        if status != '128':  # 设备不空闲
+            errc_send += 1
+            continue
+
+        # 修改发送逻辑
+        errcode = send_message_to_topic(topic, push_json)
+
+        if errcode == 0:
+            success_send += 1
+        else:
+            errc_send += 1
+
+        logging.info('push_dat发送的result：%s ' % errcode)
+
+    send_result['success_send'] = success_send
+    send_result['errc_send'] = errc_send
+    send_result['send_devices_count'] = len(device_list)
+
+    return jsonify(ret_data(SUCCESS, data=send_result))
+
+
+def calculate_offset(image_height, count, questionNum):
+
+    image_height = int(image_height)
+    count = int(count)
+    questionNum = int(questionNum)
+
+    partitionHeight = image_height // count
+
+    offset = 0
+
+    if count % 2 == 1:  # 奇数题目
+        if questionNum <= count // 2:
+            offset = -(partitionHeight * (((count // 2) + 1) - questionNum))
+        elif questionNum == ((count // 2) + 1):
+            pass
+        else:
+            offset = partitionHeight * (questionNum - ((count // 2) + 1))
+    else:  # 偶数题目
+        if questionNum < count // 2:
+            offset = -(partitionHeight * ((count // 2) - questionNum))
+        elif (questionNum == (count // 2)):
+            offset = -(partitionHeight * 0.5)
+        elif (questionNum == (count // 2) + 1):
+            offset = partitionHeight * 0.5
+        else:
+            offset = partitionHeight * (questionNum - ((count // 2) + 1))
+
+    return offset
+
 
 
 @mqtt_api.route('/newGetKeyboardDataImpl', methods=['GET','POST'])

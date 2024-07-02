@@ -47,12 +47,21 @@ def test1():
 
 
 
+
+
 if __name__ == '__main__':
     x = 10 + -5
     print(x)
     # test1()
-
-
+    # print(7//2)
+    # print(6//2)
+    raw_data = '[1,+,1,=,2]'
+    quoted_data = raw_data.replace('[', '["').replace(']', '"]').replace(',', '","')
+    data = json.loads(quoted_data)
+    print(data)
+    expr_with_spaces = [str(item) + (' ' if i < len(data) - 1 else '') for i, item in enumerate(data)]
+    final_expr = ''.join(expr_with_spaces)
+    print(final_expr)
 
     # main()
 

@@ -38,28 +38,41 @@ def generate_image(text, output_path,image_width,image_height,offsetX,offsetY):
     text_x = ((image_width - text_width) / 2) + offsetX
     text_y = ((image_height - text_height) / 2) + offsetY
 
-    # 写入文本到图像中心
+    # # 写入文本到图像中心
     draw.text((text_x, text_y), text, fill=(0, 0, 0), font=font)  # 使用黑色填充文本
+    image = image.rotate(90, expand=True)
 
     # 保存图像
     image.save(output_path)
 
-def generateH5WordGameDat():
+# update by xiaojuzi 20240701
+def generateH5WordGameDat(textToDraw, outPutFolder,fileName,imageWidth,imageHeight,offsetX,offsetY):
 
-    text_to_draw = "11 + 10 = 21"
-    output_image_path = "output_image.png"
-    svg_file_path = "output_image.svg"
-    gcode_file_path = "output_image.gcode"
-    dat_file_path = "output_image.dat"
+    # text_to_draw = "11 + 10 = 21"
+
+    #生成对应的svg、gcode文件目录
+
+    output_image_path = outPutFolder + f'/{fileName}.png'
+
+    svg_file_path = outPutFolder + f'/{fileName}.svg'
+
+    gcode_file_path =outPutFolder + f'/{fileName}.gcode'
+
+    dat_file_path =outPutFolder + f'/{fileName}.dat'
+
+    lrc_file_path =outPutFolder + f'/{fileName}.lrc'
+
+    # 写入数据
+    with open(lrc_file_path, 'w') as file:
+        file.write('000000000000000000000000000000000')
+
 
     #生成算数图像
-    generate_image(text_to_draw, output_image_path,1052,744,0,-200)
+    generate_image(textToDraw, output_image_path,imageWidth,imageHeight,offsetX,offsetY)
     #转为dat文件
     vtracer.convert_image_to_svg_py(output_image_path, svg_file_path, colormode='binary')
-    # subprocess.run(
-    #     [inkscape_path,output_image_path,f"--export-filename={svg_file_path}"])
 
-    # # svg文件转gode文件 xiaojuzi 20240527 测试终版
+    # # svg文件转gcode文件 xiaojuzi 20240527 测试终版
     command = [
         inkscape_path,
         svg_file_path,
@@ -75,9 +88,11 @@ def generateH5WordGameDat():
 
 
 if __name__ == "__main__":
-    text_to_draw = "11 + 10 = 21"
+    text_to_draw = "1 + 1 = 2"
     output_image_path = "output_image.png"
-    # generate_image(text_to_draw, output_image_path,0,-200)
+    svg_file_path =  "output_image.svg"
+    generate_image(text_to_draw, output_image_path,1052,744,0,296)
+    vtracer.convert_image_to_svg_py(output_image_path, svg_file_path, colormode='binary')
     # print(f"Image generated and saved to {output_image_path}")
 
-    generateH5WordGameDat()
+    # generateH5WordGameDat()
