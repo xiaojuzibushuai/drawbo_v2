@@ -1,5 +1,7 @@
 import re
 import os
+import shutil
+
 
 def convert_gcode_to_dat(gcode_file_path, dat_file_path):
     enable_out_flag = 0
@@ -107,6 +109,49 @@ def merge_gcode_files(input_files, output_file):
                         return None
 
     print(f'Merged {len(input_files)} gcode files successfully. Merged content saved to {output_file}')
+    
+    
+# 移动Gcode元素坐标
+def move_gcode_element(gcode_file_path, x_offset, y_offset):
+
+    with open(gcode_file_path, 'r') as file:
+        file_content = file.readlines()
+
+    start_index = -1
+    end_index = -1
+    for i, line in enumerate(file_content):
+        if line.startswith('(Polyline consisting of 1 segments.)'):
+            start_index = i
+        elif line.startswith('(end of print job)'):
+            end_index = i
+            break
+
+    if start_index == -1 or end_index == -1:
+        print("Error: Could not find start or end in the input file.")
+        return None
+
+    for i in range(start_index, end_index):
+        match = re.match(r"G1 X(\S+) Y(\S+)", file_content[i])
+        if match:
+            x = float(match.group(1))
+            y = float(match.group(2))
+            print("读取的原坐标：", x, y)
+            x = x + x_offset
+            y = y + y_offset
+            print("修改后的坐标：", x, y)
+            file_content[i] = f'G1 X{x:.2f} Y{y:.2f}\n'
+
+    # temp_file_path = gcode_file_path + '.tmp'
+    # with open(temp_file_path, 'w') as file:
+    #     file.writelines(file_content)
+    #
+    # shutil.move(temp_file_path, gcode_file_path)
+
+    with open(gcode_file_path, 'w') as file:
+        file.writelines(file_content)
+
+    print(f'Moved gcode elements successfully.')
+
 
 
 if __name__=='__main__':
@@ -119,7 +164,10 @@ if __name__=='__main__':
     ]
 
     output_file = 'merged_output.gcode'
-    merge_gcode_files(input_files, output_file)
+    # merge_gcode_files(input_files, output_file)
+
+    gcode_file_path = '11.gcode'
+    move_gcode_element(gcode_file_path,5,0)
 
     # convert_gcode_to_dat(output_file,'out_merged.dat')
 
