@@ -90,7 +90,7 @@ def generateH5WordGameDat(textToDraw, outPutFolder,fileName,imageWidth,imageHeig
 if __name__ == "__main__":
     text_to_draw = "1 + 1 = 2"
     output_image_path = "output_image.png"
-    svg_file_path =  "output_image.svg"
+    svg_file_path = "output_image.svg"
     generate_image(text_to_draw, output_image_path,1052,744,0,296)
     vtracer.convert_image_to_svg_py(output_image_path, svg_file_path, colormode='binary')
     # print(f"Image generated and saved to {output_image_path}")

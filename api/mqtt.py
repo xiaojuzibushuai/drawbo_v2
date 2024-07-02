@@ -322,7 +322,7 @@ def sendEquation() -> object:
     if not data or not questionNum or not count or not sceneid:
         return jsonify(ret_data(PARAMS_ERROR))
 
-    if (int(questionNum) > int(count)) or (int(questionNum) <= 1):
+    if (int(questionNum) > int(count)) or (int(questionNum) < 1):
         return jsonify(ret_data(PARAMS_ERROR))
 
     sceneid = json.loads(sceneid)
@@ -347,9 +347,9 @@ def sendEquation() -> object:
     image_height = 744
     offsetX = 0
     offsetY = 0
-
-    quoted_data = data.replace('[', '["').replace(']', '"]').replace(',', '","')
-    data = json.loads(quoted_data)
+    # 这里以前端传递为主
+    # quoted_data = data.replace('[', '["').replace(']', '"]').replace(',', '","')
+    data = json.loads(data)
     expr_with_spaces = [str(item) + (' ' if i < len(data) - 1 else '') for i, item in enumerate(data)]
     final_expr = ''.join(expr_with_spaces)
     print(final_expr)
