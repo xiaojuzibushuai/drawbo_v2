@@ -131,6 +131,7 @@ def iot_topic():
             devicename=devicename,
         )
         db.session.add(device)
+        db.session.flush()
 
 
         # 初始化课程及关系
