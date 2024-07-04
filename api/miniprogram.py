@@ -4575,7 +4575,7 @@ def getUnbindExternalDevice():
         return jsonify(ret_data(SUCCESS, data=device_data))
 
 
-#外接多设备创建 外设新增 创建外设 xiaojuzi v2 20231024
+#外接多设备创建 外设新增 创建外设 外设创建 xiaojuzi v2 20231024
 @miniprogram_api.route('/createExternalDevice', methods=['POST'])
 @jwt_required()
 # @decorator_sign
@@ -4596,13 +4596,18 @@ def createExternalDevice():
     devicename = request.form.get('devicename',None)
     d_type = int(request.form.get('d_type',None))
 
+
     deviceid = deviceid.replace(':', '').upper()
     mac = mac.replace(':', '').upper()
 
     logging.info('d_type: %s,devicename: %s, deviceid: %s, mac: %s' % (d_type,devicename, deviceid, mac))
 
-    if not deviceid or not mac:
+    #20240704  新增外设图片 xiaojuzi
+    avatar = request.form.get('avatar', None)
+
+    if not deviceid or not mac or not avatar:
         return jsonify(ret_data(PARAMS_ERROR))
+
 
     device = ExternalDevice.query.filter_by(deviceid=deviceid).first()
 
@@ -4633,6 +4638,7 @@ def createExternalDevice():
             d_type=d_type,
             qrcode_suffix_data='device/%s.png' % deviceid,
             topic=topic,
+            img_files = avatar,
             # 设备绑定时间 20240204 xiaojuzi
             status_update=datetime.now()
         )
@@ -4643,6 +4649,7 @@ def createExternalDevice():
         device.devicename = devicename
         device.d_type = d_type
         device.topic = topic
+        device.img_files = avatar
 
 
     if not device1:
@@ -5110,12 +5117,15 @@ def updateExternalDevceName():
     if not deviceid:
         return jsonify(ret_data(PARAMS_ERROR))
 
+    #20240704 xiaojuzi
+    avatar = request.form.get('avatar',None)
+
     device = UserExternalDevice.query.filter_by(userid=openid,deviceid=deviceid).first()
 
     if device:
         #加入分享设备权限控制 20240225 xiaojuzi
         if device.status == 0:
-            result = updateExternalDevceProperty(device,devicename,d_type)
+            result = updateExternalDevceProperty(device,devicename,d_type,avatar)
 
             if result == 0:
                 return jsonify(ret_data(SUCCESS, data='操作成功'))
@@ -5127,7 +5137,7 @@ def updateExternalDevceName():
             if sc.permission_level == 1:
                 return jsonify(ret_data(UPDATE_EXTERNAL_PERMISSION_ERROR))
             elif sc.permission_level == 2:
-                result = updateExternalDevceProperty(device, devicename, d_type)
+                result = updateExternalDevceProperty(device, devicename, d_type,avatar)
 
                 if result == 0:
                     return jsonify(ret_data(SUCCESS, data='操作成功'))
@@ -5139,12 +5149,14 @@ def updateExternalDevceName():
     return jsonify(ret_data(UNBIND_DEVICE))
 
 # 更改外设属性方法 有权限时更改外设属性方法 xiaojuzi 20240223
-def updateExternalDevceProperty(device :UserExternalDevice,devicename,d_type):
+def updateExternalDevceProperty(device :UserExternalDevice,devicename,d_type,avatar):
 
     device1 = ExternalDevice.query.filter_by(deviceid=device.deviceid).first()
 
     if devicename:
         device1.devicename = devicename
+    if avatar:
+        device1.avatar = avatar
 
     if d_type:
         if d_type != 3:

@@ -19,6 +19,8 @@ class ExternalDevice(db.Model):
 
     topic = db.Column(db.String(32), default="iot/2/default_topic")  # 主题
 
+    img_files = db.Column(db.Text, nullable=True)
+
 
     def __str__(self):
         return self.id
