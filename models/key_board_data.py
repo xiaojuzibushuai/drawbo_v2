@@ -11,6 +11,8 @@ class KeyBoardData(db.Model):
 
     devicename = db.Column(db.String(32), default="")  # 设备名字 xiaojuzi
 
+    deviceid = db.Column(db.String(32), default="")
+
     parentid = db.Column(db.Integer, db.ForeignKey('parent_game.id'))  # 大游戏id 20231120
 
     gametype = db.Column(db.String(8), default="") #游戏类型 xiaojuzi

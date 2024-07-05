@@ -65,7 +65,8 @@ def setup_mqtt():
             with app.app_context():
 
                 # 执行回调函数逻辑
-                insert_mqmessage(msg)
+                # 202407050 删除此方法 xiaojuzi
+                # insert_mqmessage(msg)
 
                 insert_data(msg)
 
@@ -117,18 +118,10 @@ def insert_mqmessage(msg):
 # 数据插入函数 xiaojuzi 20231030
 def insert_data(msg):
     # 解析JSON消息
-    # message = json.loads(msg.payload.decode())
-    # device = message['device']
-    # title = message['title']
-    # answer = message['answer']
 
     # 解析消息
-    # {
-    #   device:'小磊',
-    #   title:'03',
-    #   answer:'0'
-    #   parentid:'1'
-    #   }
+    # {device:'小磊',title:'03',answer:'0',parentid:'1',deviceid:'123123213'}
+
     # 点号表示匹配除了换行符以外的任意字符 星号表示匹配前面的元素零次或多次 问号表示非贪婪匹配
     message = msg.payload.decode()
 
@@ -136,13 +129,11 @@ def insert_data(msg):
     title_match = re.search(r"title:'(.*?)'", message)
     answer_match = re.search(r"answer:'(.*?)'", message)
     parentid_match = re.search(r"parentid:'(.*?)'", message)
+    deviceid_match = re.search(r"deviceid:'(.*?)'", message)
 
-    if not device_match or not title_match:
+    if not device_match or not title_match or not deviceid_match:
         return None
 
-    device = device_match.group(1)
-
-    title = title_match.group(1)
     #修改判断逻辑 xiaojuzi v2 20240205
     if answer_match:
         answer = answer_match.group(1)
@@ -154,36 +145,19 @@ def insert_data(msg):
     else:
         parentid = '0'
 
-    #title为0 不统计
-    if title == '0' or title == '00' or title == '' or title == ' ':
-        return None
+    device = device_match.group(1)
+    title = title_match.group(1)
+    deviceid = deviceid_match.group(1)
 
-    data = db.session.query(KeyBoardData).filter_by(devicename=device, gametype=title, answer=answer,parentid=parentid).order_by(KeyBoardData.id.desc()).first()
-
-    if data:
-        #5s内不可重复作答
-        if int(datetime.now().timestamp()) - data.status_update.timestamp() < 5:
-            return None
-
-        else:
-            keyBoardData = KeyBoardData(devicename=device,
-                                        gametype=title,
-                                        answer=answer,
-                                        parentid=parentid,
-                                        status_update=datetime.now()
-                                        )
-            db.session.add(keyBoardData)
-            db.session.commit()
-    else:
-
-        keyBoardData = KeyBoardData(devicename=device,
-                                    gametype=title,
-                                    answer=answer,
-                                    parentid=parentid,
-                                    status_update=datetime.now()
+    keyBoardData = KeyBoardData(devicename=device,
+                                gametype=title,
+                                answer=answer,
+                                parentid=parentid,
+                                status_update=datetime.now(),
+                                deviceid=deviceid
                                     )
-        db.session.add(keyBoardData)
-        db.session.commit()
+    db.session.add(keyBoardData)
+    db.session.commit()
 
     logging.info("insert key_board_data : %s", message)
 
