@@ -4381,6 +4381,7 @@ def getBindExternalDevice():
             'is_choose': '',
             'd_type': '',
             'mac': '',
+            'avatar':'',
             'status_update':'',
             'data': {
                 'dev_online': '',
@@ -4397,6 +4398,7 @@ def getBindExternalDevice():
             device_dict['mac'] = device1.mac
             # 设备绑定时间 20240204 xiaojuzi
             device_dict['status_update'] = device1.status_update
+            device_dict['avatar'] = device1.img_files
 
             device_dict['is_choose'] = device.is_choose
 
@@ -4412,6 +4414,7 @@ def getBindExternalDevice():
                 'is_choose': '',
                 'd_type': '',
                 'mac': '',
+                'avatar':'',
                 'status_update':'',
                 'data': {
                     'dev_online': '',
@@ -4432,6 +4435,7 @@ def getBindExternalDevice():
         'is_choose': '',
         'd_type': '',
         'mac': '',
+        'avatar': '',
         'status_update': '',
         'data': {
             'dev_online': '',
@@ -4456,6 +4460,7 @@ def getBindExternalDevice():
         device_dict['mac'] = device1.mac
         # 设备绑定时间 20240204 xiaojuzi
         device_dict['status_update'] = device1.status_update
+        device_dict['avatar'] = device1.img_files
 
         device_dict['is_choose'] = device.is_choose
 
@@ -4471,6 +4476,7 @@ def getBindExternalDevice():
             'is_choose': '',
             'd_type': '',
             'mac': '',
+            'avatar': '',
             'status_update': '',
             'data': {
                 'dev_online': '',
@@ -4510,6 +4516,7 @@ def getUnbindExternalDevice():
         'is_choose': '',
         'd_type': '',
         'mac': '',
+        'avatar':'',
         'status_update': '',
         'data': {
             'dev_online': '',
@@ -4545,8 +4552,10 @@ def getUnbindExternalDevice():
         device_dict['d_type'] = device.d_type
         device_dict['mac'] = device1.mac
 
+
         # 设备绑定时间 20240204 xiaojuzi
         device_dict['status_update'] = device1.status_update
+        device_dict['avatar'] = device1.img_files
 
         device_dict['is_choose'] = device.is_choose
 
@@ -4562,6 +4571,7 @@ def getUnbindExternalDevice():
             'is_choose': '',
             'd_type': '',
             'mac': '',
+            'avatar':'',
             'status_update': '',
             'data': {
                 'dev_online': '',
